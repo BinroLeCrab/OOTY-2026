@@ -14,7 +14,9 @@
   "dependencies": {
     "@vitejs/plugin-basic-ssl": "^2.3.0",
     "howler": "^2.2.4",
+    "serialport": "^13.0.0",
     "three": "^0.185.1",
-    "tweakpane": "^4.0.5"
+    "tweakpane": "^4.0.5",
+    "ws": "^8.22.0"
   }
 }
