@@ -2,20 +2,11 @@ import { color, texture, uv, vec2 } from "three/tsl";
 import * as THREE from "three/webgpu";
 import { textureLoader } from "../utils/loaders";
 import webcam from "../tools/WebCam";
+import sizes from "../utils/Sizes";
 
 class WebCamMaterial extends THREE.MeshBasicNodeMaterial {
 	constructor(parameters) {
 		super(parameters);
-
-		const floorTexture = textureLoader.load(
-			"/assets/textures/floor-color.jpg",
-			undefined,
-			undefined,
-			(error) => {
-				console.error("Unable to load the ground texture.", error);
-			}
-		);
-		floorTexture.colorSpace = THREE.SRGBColorSpace;
 
 		this.webcamTexture = new THREE.DataTexture(
 			new Uint8Array([0, 0, 0, 255]),
@@ -31,7 +22,7 @@ class WebCamMaterial extends THREE.MeshBasicNodeMaterial {
 
 	createCoverUv(width, height) {
 		const videoAspect = width / height;
-		const planeAspect = 1; // Ton PlaneGeometry est carré
+		const planeAspect = sizes.width / sizes.height;
 
 		let scaleX = 1;
 		let scaleY = 1;
