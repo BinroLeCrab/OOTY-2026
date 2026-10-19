@@ -6,6 +6,7 @@ import PostProcessing from "./postprocessing/PostProcessing";
 import interactionRaycaster from "./tools/InteractionRaycaster";
 import Sizes from "./utils/Sizes";
 import * as stats from "./tools/Stats";
+import ArduinoObjectController from "./controllers/ArduinoObjectController";
 
 const showStats = true;
 const logRendererInfo = false;
@@ -21,6 +22,8 @@ if (!canvas) {
 
 const sizes = new Sizes();
 const scene = new Scene();
+
+const arduinoController = new ArduinoObjectController(scene.baseObject);
 
 // --- CAMERA
 
@@ -89,10 +92,6 @@ const tick = () => {
 		delta: timer.getDelta(),
 		elapsed: timer.getElapsed(),
 	};
-
-    // --- Update Scene
-    // objects
-	scene.update(time);
 
     // controls and interaction raycaster
 	controls.update();

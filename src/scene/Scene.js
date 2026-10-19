@@ -57,7 +57,4 @@ export default class Scene extends THREE.Scene {
 		this.add(new THREE.AmbientLight(0x859dff, 1));
 	}
 
-	update(time) {
-		this.baseObject.update(time);
-	}
 }
