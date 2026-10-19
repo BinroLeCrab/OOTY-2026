@@ -8,8 +8,4 @@ export default class BaseObject extends THREE.Mesh {
 
 		super(geometry, material);
 	}
-
-	update(time) {
-		this.rotation.y = time.elapsed * 0.5;
-	}
 }

@@ -5,6 +5,7 @@ import Scene from "./scene/Scene";
 import PostProcessing from "./postprocessing/PostProcessing";
 import interactionRaycaster from "./tools/InteractionRaycaster";
 import * as stats from "./tools/Stats";
+import ArduinoObjectController from "./controllers/ArduinoObjectController";
 import webcam from "./tools/WebCam";
 import sizes from "./utils/Sizes";
 
@@ -21,6 +22,8 @@ if (!canvas) {
 }
 
 const scene = new Scene();
+
+const arduinoController = new ArduinoObjectController(scene.baseObject);
 
 // --- CAMERA
 

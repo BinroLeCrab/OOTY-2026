@@ -39,6 +39,55 @@ Le résultat est généré dans `dist/`.
 npm run preview
 ```
 
+## Arduino, encodeur rotatif et changement de couleur
+
+L'encodeur rotatif (CLK/DT dans le sketch Arduino fourni) et le bouton de validation D2 modifient tous deux le même `mode`. Les deux doivent envoyer la même ligne série, par exemple `Encodeur - Mode : 2`. Le relais transmet ce mode au navigateur, qui applique la couleur correspondante : rouge (0), vert (1), bleu (2), violet (3).
+
+Garde `Serial.begin(115200);`. Dans le bloc qui détecte le mouvement de l'encodeur, envoie le mode ainsi :
+
+```cpp
+Serial.print("Encodeur - Mode : ");
+Serial.println(mode);
+```
+
+Dans le bloc du bouton D2, après l'incrémentation et le retour de `mode` à 0 après 3, utilise exactement le même message :
+
+```cpp
+Serial.print("Encodeur - Mode : ");
+Serial.println(mode);
+```
+
+Le bouton fait avancer le mode. L'encodeur le fait avancer ou reculer selon le sens de rotation. Par exemple, si le mode est 1, un clic sur D2 passe en mode 2 ; tourner l'encodeur dans un sens passe en mode 3, et dans l'autre revient au mode 1. Dans le relais, les anciens messages `Bouton - Mode : N` sont également acceptés pendant la transition.
+
+Branche la carte en USB, puis lance dans deux terminaux depuis la racine du projet :
+
+```bash
+npm run websocket
+npm run dev
+```
+
+Le relais utilise `COM8` à 115200 bauds et écoute sur `ws://localhost:8080`. Pour un autre port série, lance par exemple `npm run websocket -- COM5`. Le navigateur et Node.js doivent tourner sur le même ordinateur. Le client réessaie automatiquement la connexion WebSocket.
+
+### Inclinaison du MPU6050 et rotation sur l'axe Y
+
+Le sketch fourni calcule déjà `angleY` à partir de l'accélération du MPU6050. Pour envoyer cette inclinaison au navigateur, ajoute cette déclaration avec les autres variables globales :
+
+```cpp
+unsigned long dernierEnvoiGyroscope = 0;
+```
+
+Dans le bloc MPU6050 où `angleY` vient d'être calculé, après le calcul de `angleY`, ajoute :
+
+```cpp
+if (millis() - dernierEnvoiGyroscope >= 100) {
+  dernierEnvoiGyroscope = millis();
+  Serial.print("Gyroscope:");
+  Serial.println(angleY, 1);
+}
+```
+
+Envoie bien `angleY` (de -90° à +90°), pas `rotationY = angleY + 90`. Après redémarrage de `npm run websocket`, le terminal affiche périodiquement l'angle reçu et l'angle de rotation Y. Le navigateur applique `angleY` à la rotation de l'objet autour de son axe Y, en convertissant les degrés en radians pour Three.js. Dans le sketch fourni, cet angle est estimé avec l'accéléromètre du MPU6050 ; ce n'est pas une intégration de la vitesse du gyroscope.
+
 ## Organisation du projet
 
 ```text
@@ -46,9 +95,15 @@ npm run preview
 ├── index.html
 ├── public/
 │   └── assets/                 # Ressources accessibles depuis /assets/
+├── websocket/
+│   └── server.js               # Pont série Arduino -> WebSocket
 ├── src/
 │   ├── main.js                # Point d'entrée et boucle de rendu
 │   ├── style.css              # Styles globaux et canvas
+│   ├── controllers/
+│   │   └── ArduinoObjectController.js # Relie les commandes Arduino à un objet 3D
+│   ├── websocket/
+│   │   └── WebSocketClient.js  # Réception des modes dans le navigateur
 │   ├── scene/
 │   │   ├── Scene.js            # Scène, environnement, objets et lumières
 │   │   └── objects/            # Objets 3D de la scène
@@ -86,6 +141,27 @@ La scène est définie dans [`src/scene/Scene.js`](./src/scene/Scene.js). Elle c
 - l'environnement HDR.
 
 Chaque objet animé peut implémenter une méthode `update(time)`, appelée par `Scene.update(time)`.
+
+## Réutiliser les contrôles Arduino sur un autre objet
+
+La communication WebSocket et l'application des contrôles sont isolées dans [`src/controllers/ArduinoObjectController.js`](./src/controllers/ArduinoObjectController.js). Le contrôleur accepte n'importe quel `THREE.Object3D` :
+
+- le mode Arduino colore les matériaux colorables de l'objet et de ses enfants ;
+- l'angle du MPU6050 règle sa rotation autour de l'axe Y, de -90° à +90°.
+
+Le branchement courant est dans [`src/experience.js`](./src/experience.js) :
+
+```js
+const arduinoController = new ArduinoObjectController(scene.baseObject);
+```
+
+Pour remplacer l'objet principal plus tard, passe le nouvel objet à la place de `scene.baseObject`. Si tu souhaites conserver la connexion active et changer sa cible à l'exécution, utilise :
+
+```js
+arduinoController.setTarget(nouvelObjet);
+```
+
+Le nouvel objet peut être un mesh ou un groupe qui contient des meshes ; ses matériaux avec une propriété `color` seront colorés par les modes Arduino.
 
 ## Post-processing
 
