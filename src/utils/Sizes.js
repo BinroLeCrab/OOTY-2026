@@ -1,4 +1,4 @@
-export default class Sizes extends EventTarget {
+class Sizes extends EventTarget {
 	constructor() {
 		super();
 
@@ -22,3 +22,7 @@ export default class Sizes extends EventTarget {
 		window.removeEventListener("resize", this.onResize);
 	}
 }
+
+const sizes = new Sizes();
+
+export default sizes;

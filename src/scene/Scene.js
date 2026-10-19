@@ -2,6 +2,7 @@ import * as THREE from "three/webgpu";
 import BaseObject from "./objects/BaseObject";
 import Ground from "./objects/Ground";
 import { hdrLoader } from "../utils/loaders";
+import Video from "./objects/Video";
 
 export default class Scene extends THREE.Scene {
 	constructor() {
@@ -10,7 +11,7 @@ export default class Scene extends THREE.Scene {
 		this.addObjects();
 		this.addLights();
 
-		this.setupEnvironment();
+		// this.setupEnvironment();
 	}
 
 	setupEnvironment() {
@@ -30,11 +31,13 @@ export default class Scene extends THREE.Scene {
 	}
 
 	addObjects() {
-		this.baseObject = new BaseObject(1);
+		this.baseObject = new BaseObject(10);
 		this.add(this.baseObject);
 
-		this.ground = new Ground(10);
-		this.add(this.ground);
+		// this.ground = new Ground(10);
+		// this.add(this.ground);
+		this.video = new Video(10);
+		this.add(this.video);
 	}
 
 	addLights() {
@@ -57,4 +60,8 @@ export default class Scene extends THREE.Scene {
 		this.add(new THREE.AmbientLight(0x859dff, 1));
 	}
 
+	update(time) {
+		this.baseObject.update(time);
+		this.video.update();
+	}
 }
