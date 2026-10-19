@@ -3,7 +3,20 @@ import * as THREE from "three/webgpu";
 import { textureLoader } from "../utils/loaders";
 import webcam from "../tools/WebCam";
 import sizes from "../utils/Sizes";
-import { invertColor } from "../shaders/fragmentShaders";
+import { greyscale, invertColor } from "../shaders/fragmentShaders";
+
+let templateChainEffect = [
+    {
+        fct : invertColor,
+        parm1 : 20,
+        parm2 : 20,
+    },
+    {
+        fct : greyscale,
+        parm1 : 20,
+        parm2 : 20,
+    }
+]
 
 class WebCamMaterial extends THREE.MeshBasicNodeMaterial {
 	constructor(parameters) {
