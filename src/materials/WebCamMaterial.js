@@ -1,8 +1,9 @@
-import { color, texture, uv, vec2 } from "three/tsl";
+import { color, dot, mix, texture, uv, vec2, vec3, vec4 } from "three/tsl";
 import * as THREE from "three/webgpu";
 import { textureLoader } from "../utils/loaders";
 import webcam from "../tools/WebCam";
 import sizes from "../utils/Sizes";
+import { invertColor } from "../shaders/fragmentShaders";
 
 class WebCamMaterial extends THREE.MeshBasicNodeMaterial {
 	constructor(parameters) {
@@ -43,6 +44,23 @@ class WebCamMaterial extends THREE.MeshBasicNodeMaterial {
 			.add(vec2(0.5, 0.5));
 	}
 
+	createWebcamNode(width, height) {
+		const coverUv = this.createCoverUv(width, height);
+		const webcamSample = texture(this.webcamTexture, coverUv);
+
+		return this.applyEffects(webcamSample);
+	}
+
+	applyEffects(inputColor) {
+		let result = inputColor;
+
+		
+        // result = invertColor(result);
+		// result = this.greyscale(result);
+
+		return result;
+	}
+
 	update() {
 		const frame = webcam.getFrame();
 
@@ -66,11 +84,10 @@ class WebCamMaterial extends THREE.MeshBasicNodeMaterial {
 
 			this.webcamTexture.colorSpace = THREE.SRGBColorSpace;
 			this.webcamTexture.flipY = true;
+			this.webcamTexture.needsUpdate = true;
 
-			const coverUv = this.createCoverUv(frame.width, frame.height);
-
-			this.colorNode = texture(this.webcamTexture, coverUv);
-            this.needsUpdate = true;
+			this.colorNode = this.createWebcamNode(frame.width, frame.height);
+			this.needsUpdate = true;
 		} else {
 			this.webcamTexture.image.data.set(frame.data);
 			this.webcamTexture.needsUpdate = true;

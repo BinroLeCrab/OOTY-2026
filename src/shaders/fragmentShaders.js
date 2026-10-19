@@ -21,7 +21,22 @@ import {
 	uv,
 	vec2,
 	vec3,
+	vec4,
 } from "three/tsl";
+
+export const greyscale = Fn(([inputColor]) => {
+	const effectStrength = 1.0; // Adjust this value to control the strength of the effect
+	const luminance = dot(inputColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+	const grayscale = vec4(luminance, luminance, luminance, inputColor.a);
+
+	return mix(inputColor, grayscale, effectStrength);
+});
+
+export const invertColor = Fn(([inputColor]) => {
+	const invertedRgb = vec3(1).sub(inputColor.rgb);
+
+	return vec4(invertedRgb, inputColor.a);
+});
 
 export const fresnel = Fn(
 	({
@@ -49,7 +64,10 @@ export const smoothCircle = Fn(
 		const coords = uv().sub(0.5);
 		const distance = length(coords);
 
-		const mask = distance.smoothstep(radius.sub(smoothness), radius.add(smoothness));
+		const mask = distance.smoothstep(
+			radius.sub(smoothness),
+			radius.add(smoothness)
+		);
 
 		return mix(foreground, background, mask);
 	}
@@ -57,7 +75,19 @@ export const smoothCircle = Fn(
 
 export const noiseUnifiedFractal2D = Fn(() => {
 	// Implementation for 2D fractal noise
-	const position2D = uv( 0 ).mul( 50 ).add( vec2( time.mul( 0.03 ), time.mul( 0.019 ) ) );
-	const unifiedOffset2D = vec2( time.mul( .35 ), time.mul( .19 ) );
-	return mx_unifiednoise2d( int( 3 ), position2D, vec2( 1, 1 ), unifiedOffset2D, 1, 0, 1, false, 3 ) 
+	const position2D = uv(0)
+		.mul(50)
+		.add(vec2(time.mul(0.03), time.mul(0.019)));
+	const unifiedOffset2D = vec2(time.mul(0.35), time.mul(0.19));
+	return mx_unifiednoise2d(
+		int(3),
+		position2D,
+		vec2(1, 1),
+		unifiedOffset2D,
+		1,
+		0,
+		1,
+		false,
+		3
+	);
 });
