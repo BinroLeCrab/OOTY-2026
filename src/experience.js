@@ -6,6 +6,7 @@ import PostProcessing from "./postprocessing/PostProcessing";
 import interactionRaycaster from "./tools/InteractionRaycaster";
 import Sizes from "./utils/Sizes";
 import * as stats from "./tools/Stats";
+import webcam from "./tools/WebCam";
 
 const showStats = true;
 const logRendererInfo = false;
@@ -30,7 +31,7 @@ const camera = new THREE.PerspectiveCamera(
 	0.1,
 	100
 );
-camera.position.set(5, 4.5, 2.5);
+camera.position.set(0, 4.5, 2.5);
 scene.add(camera);
 
 // --- RENDERER

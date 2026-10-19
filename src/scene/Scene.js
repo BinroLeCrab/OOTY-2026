@@ -59,5 +59,6 @@ export default class Scene extends THREE.Scene {
 
 	update(time) {
 		this.baseObject.update(time);
+		this.ground.update();
 	}
 }
