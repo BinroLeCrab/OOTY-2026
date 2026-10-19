@@ -66,7 +66,19 @@ npm run websocket
 npm run dev
 ```
 
-Le relais utilise `COM8` à 115200 bauds et écoute sur `ws://localhost:8080`. Pour un autre port série, lance par exemple `npm run websocket -- COM5`. Le navigateur et Node.js doivent tourner sur le même ordinateur. Le client réessaie automatiquement la connexion WebSocket.
+Le relais utilise `COM8` à 115200 bauds et écoute sur `ws://localhost:8080`. Le port peut être configuré avec la variable d'environnement `SERIAL_PORT` afin que chaque membre de l'équipe utilise sa propre configuration. Copie `.env.example` vers `.env` et indique le port de la carte :
+
+```env
+SERIAL_PORT=COM5
+```
+
+Le fichier `.env` est ignoré par Git. Il est également possible de fournir le port directement au lancement :
+
+```bash
+npm run websocket -- COM5
+```
+
+L'argument passé en ligne de commande est prioritaire sur `SERIAL_PORT`, qui est elle-même prioritaire sur la valeur par défaut `COM8`. Le navigateur et Node.js doivent tourner sur le même ordinateur. Le client réessaie automatiquement la connexion WebSocket.
 
 ### Inclinaison du MPU6050 et rotation sur l'axe Y
 

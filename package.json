@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "websocket": "node websocket/server.js",
+    "websocket": "node --env-file-if-exists=.env websocket/server.js",
     "build": "vite build",
     "preview": "vite preview"
   },

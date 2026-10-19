@@ -1,7 +1,7 @@
 import { SerialPort } from "serialport";
 import { WebSocket, WebSocketServer } from "ws";
 
-const serialPath = process.argv[2] ?? "COM8";
+const serialPath = process.argv[2] ?? process.env.SERIAL_PORT ?? "COM8";
 const webSocketPort = 8080;
 
 const serialPort = new SerialPort({
