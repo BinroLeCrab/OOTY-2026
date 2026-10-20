@@ -10,7 +10,7 @@ const PAPER_FEED_LINES = 64;
 const GRAYSCALE_LEVELS = 14;
 const IMAGE_SHARPNESS = 1.1;
 const HISTOGRAM_PERCENTILE = 0.2;
-const CONTRAST_SCALE = 0.46;
+const CONTRAST_SCALE = 1;
 
 function createPrinterPanel() {
 	const panel = document.createElement("section");
