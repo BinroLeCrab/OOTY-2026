@@ -109,11 +109,13 @@ export default class ArduinoShaderController {
 		if (!this.infoPanel) return;
 		const angle = this.gyroscopeAngle === null
 			? "En attente" : `${this.gyroscopeAngle.toFixed(1)}°`;
-		this.infoPanel.textContent =
+		const text =
 			`Shader ${this.mode + 1} : ${this.getShaderName(this.mode)}\n` +
 			`Gyroscope (Y) : ${angle}\n` +
 			`Intensité : ${(this.intensity * 100).toFixed(0)} %\n` +
 			`Effets sauvegardés : ${this.savedLayerCount}`;
+		// Ne pas invalider le DOM si les valeurs affichées n'ont pas changé.
+		if (this.infoPanel.textContent !== text) this.infoPanel.textContent = text;
 	}
 
 	getShaderName(mode) {
