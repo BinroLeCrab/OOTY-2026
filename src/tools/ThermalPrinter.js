@@ -11,6 +11,8 @@ const GRAYSCALE_LEVELS = 14;
 const IMAGE_SHARPNESS = 1.1;
 const HISTOGRAM_PERCENTILE = 0.2;
 const CONTRAST_SCALE = 1;
+const DARK_TONE_GAMMA = 1.3;
+const BLACK_LEVEL = 48;
 
 function createPrinterPanel() {
 	const panel = document.createElement("section");
@@ -123,7 +125,11 @@ function toMonochromeRaster(image) {
 				((value - lowValue) * (highOutput - lowOutput)) / inputRange;
 		}
 
-		grayscale[index] = Math.max(0, Math.min(255, Math.trunc(adjusted)));
+		const normalized = Math.max(0, Math.min(1, adjusted / 255));
+		grayscale[index] = Math.max(
+			0,
+			Math.min(255, Math.trunc(255 * normalized ** DARK_TONE_GAMMA)),
+		);
 	}
 
 	const quantizationStep = 256 / GRAYSCALE_LEVELS;
@@ -131,6 +137,12 @@ function toMonochromeRaster(image) {
 		for (let x = 0; x < width; x += 1) {
 			const index = y * width + x;
 			const value = grayscale[index];
+			if (value <= BLACK_LEVEL) {
+				grayscale[index] = 0;
+				raster[index] = 255;
+				continue;
+			}
+
 			const level = Math.min(
 				GRAYSCALE_LEVELS - 1,
 				Math.floor(value / quantizationStep),
