@@ -1,11 +1,10 @@
-import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import * as THREE from "three/webgpu";
 
 import Scene from "./scene/Scene";
 import PostProcessing from "./postprocessing/PostProcessing";
 import interactionRaycaster from "./tools/InteractionRaycaster";
 import * as stats from "./tools/Stats";
-import ArduinoObjectController from "./controllers/ArduinoObjectController";
+import ArduinoShaderController from "./controllers/ArduinoShaderController";
 import webcam from "./tools/WebCam";
 import sizes from "./utils/Sizes";
 
@@ -23,9 +22,9 @@ if (!canvas) {
 
 const scene = new Scene();
 
-const arduinoController = new ArduinoObjectController(scene.baseObject);
+const arduinoController = new ArduinoShaderController(scene.video);
 
-// --- CAMERA
+// --- CAM?RA
 
 // const camera = new THREE.PerspectiveCamera(
 // 	35,
@@ -34,6 +33,7 @@ const arduinoController = new ArduinoObjectController(scene.baseObject);
 // 	100
 // );
 // camera.position.set(0, 0, 10);
+
 
 const camera = new THREE.OrthographicCamera(
 	sizes.width / -2,
@@ -47,7 +47,7 @@ const camera = new THREE.OrthographicCamera(
 camera.position.z = 10;
 scene.add(camera);
 
-// --- RENDERER
+// --- MOTEUR DE RENDU
 
 const renderer = new THREE.WebGPURenderer({
 	canvas,
@@ -61,23 +61,26 @@ renderer.setSize(sizes.width, sizes.height);
 renderer.setPixelRatio(sizes.pixelRatio);
 await renderer.init();
 
-// --- CONTROLS
+
+// --- CONTR?LES
 
 interactionRaycaster.init(camera, canvas);
 
-// --- POST-PROCESSING
+// --- POST-TRAITEMENT
 
-const postProcessing = new PostProcessing(renderer, scene, camera);
+const postProcessing = renderPostProcessing
+	? new PostProcessing(renderer, scene, camera)
+	: null;
 
-// --- DEBUG
+// --- D?BOGAGE
 
 stats.initialize(showStats);
 
-// --- RESIZE
+// --- REDIMENSIONNEMENT
 
 sizes.addEventListener("resize", () => {
 	// camera.aspect = sizes.width / sizes.height;
-	// Update the camera
+	// Mettre ? jour la cam?ra
 	camera.left = sizes.width / -2;
 	camera.right = sizes.width / 2;
 	camera.top = sizes.height / 2;
@@ -104,14 +107,15 @@ const tick = () => {
 		elapsed: timer.getElapsed(),
 	};
 
-	// --- Update Scene
-	// objects
+	// --- Mettre ? jour la sc?ne
+	// Objets de la sc?ne
 	scene.update(time);
 
-	// controls and interaction raycaster
+	// Contr?les et d?tection des interactions ? la souris
 	interactionRaycaster.update();
 
-	// -- Render Scene
+
+	// -- Dessiner la sc?ne
 	if (renderPostProcessing) {
 		postProcessing.render();
 	} else {
@@ -127,3 +131,16 @@ const tick = () => {
 };
 
 renderer.setAnimationLoop(tick);
+
+if (import.meta.hot) {
+	import.meta.hot.dispose(() => {
+		renderer.setAnimationLoop(null);
+		arduinoController.dispose();
+		webcam.dispose();
+		interactionRaycaster.dispose();
+		scene.video.material.dispose();
+		scene.video.geometry.dispose();
+		timer.dispose();
+		renderer.dispose();
+	});
+}

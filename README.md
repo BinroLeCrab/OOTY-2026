@@ -39,66 +39,26 @@ Le résultat est généré dans `dist/`.
 npm run preview
 ```
 
-## Arduino, encodeur rotatif et changement de couleur
+## Arduino, encodeur et shaders
 
-L'encodeur rotatif (CLK/DT dans le sketch Arduino fourni) et le bouton de validation D2 modifient tous deux le même `mode`. Les deux doivent envoyer la même ligne série, par exemple `Encodeur - Mode : 2`. Le relais transmet ce mode au navigateur, qui applique la couleur correspondante : rouge (0), vert (1), bleu (2), violet (3).
+Le sketch de reference est [OOTYController.ino](arduino/OOTYController/OOTYController.ino).
+Il doit etre televerse sur la carte : enregistrer le fichier dans l'IDE ne suffit pas.
 
-Garde `Serial.begin(115200);`. Dans le bloc qui détecte le mouvement de l'encodeur, envoie le mode ainsi :
+- Bouton D2 : envoie uniquement `Validation`. Le relais fige l'effet actif et son intensite, puis ajoute le shader suivant.
+- Encodeur : envoie `Encodeur - Mode : N` (0 a 3). Il remplace uniquement la couche active, sans sauvegarde.
+- Gyroscope : envoie `Gyroscope:<angleY>`. L'intensite vaut `1 - abs(angleY) / 90`, et ne modifie que la couche active.
+- Recharger la page efface les couches sauvegardees et revient au premier shader.
+- Le panneau en haut a droite affiche aussi le nombre d'effets sauvegardes.
 
-```cpp
-Serial.print("Encodeur - Mode : ");
-Serial.println(mode);
-```
-
-Dans le bloc du bouton D2, après l'incrémentation et le retour de `mode` à 0 après 3, utilise exactement le même message :
-
-```cpp
-Serial.print("Encodeur - Mode : ");
-Serial.println(mode);
-```
-
-Le bouton fait avancer le mode. L'encodeur le fait avancer ou reculer selon le sens de rotation. Par exemple, si le mode est 1, un clic sur D2 passe en mode 2 ; tourner l'encodeur dans un sens passe en mode 3, et dans l'autre revient au mode 1. Dans le relais, les anciens messages `Bouton - Mode : N` sont également acceptés pendant la transition.
-
-Branche la carte en USB, puis lance dans deux terminaux depuis la racine du projet :
+Le relais utilise 115200 bauds. Copier `.env.example` vers `.env` et regler `SERIAL_PORT` (COM8 par defaut).
+Fermer le moniteur serie apres le televersement, puis lancer dans deux terminaux :
 
 ```bash
 npm run websocket
 npm run dev
 ```
 
-Le relais utilise `COM8` à 115200 bauds et écoute sur `ws://localhost:8080`. Le port peut être configuré avec la variable d'environnement `SERIAL_PORT` afin que chaque membre de l'équipe utilise sa propre configuration. Copie `.env.example` vers `.env` et indique le port de la carte :
-
-```env
-SERIAL_PORT=COM5
-```
-
-Le fichier `.env` est ignoré par Git. Il est également possible de fournir le port directement au lancement :
-
-```bash
-npm run websocket -- COM5
-```
-
-L'argument passé en ligne de commande est prioritaire sur `SERIAL_PORT`, qui est elle-même prioritaire sur la valeur par défaut `COM8`. Le navigateur et Node.js doivent tourner sur le même ordinateur. Le client réessaie automatiquement la connexion WebSocket.
-
-### Inclinaison du MPU6050 et rotation sur l'axe Y
-
-Le sketch fourni calcule déjà `angleY` à partir de l'accélération du MPU6050. Pour envoyer cette inclinaison au navigateur, ajoute cette déclaration avec les autres variables globales :
-
-```cpp
-unsigned long dernierEnvoiGyroscope = 0;
-```
-
-Dans le bloc MPU6050 où `angleY` vient d'être calculé, après le calcul de `angleY`, ajoute :
-
-```cpp
-if (millis() - dernierEnvoiGyroscope >= 100) {
-  dernierEnvoiGyroscope = millis();
-  Serial.print("Gyroscope:");
-  Serial.println(angleY, 1);
-}
-```
-
-Envoie bien `angleY` (de -90° à +90°), pas `rotationY = angleY + 90`. Après redémarrage de `npm run websocket`, le terminal affiche périodiquement l'angle reçu et l'angle de rotation Y. Le navigateur applique `angleY` à la rotation de l'objet autour de son axe Y, en convertissant les degrés en radians pour Three.js. Dans le sketch fourni, cet angle est estimé avec l'accéléromètre du MPU6050 ; ce n'est pas une intégration de la vitesse du gyroscope.
+L'argument `npm run websocket -- COM5` est prioritaire sur `SERIAL_PORT`.
 
 ## Organisation du projet
 
@@ -179,10 +139,10 @@ Le nouvel objet peut être un mesh ou un groupe qui contient des meshes ; ses ma
 
 Le post-processing est géré par [`src/postprocessing/PostProcessing.js`](./src/postprocessing/PostProcessing.js).
 
-Dans [`src/main.js`](./src/main.js), le toggle suivant permet de comparer le rendu avec et sans post-processing :
+Dans [`src/experience.js`](./src/experience.js), le toggle suivant permet de comparer le rendu avec et sans post-processing :
 
 ```js
-const renderPostProcessing = true;
+const renderPostProcessing = false;
 ```
 
 - `true` : rend via le pipeline et applique le bloom ;
@@ -192,7 +152,7 @@ const renderPostProcessing = true;
 
 Les statistiques utilisent le module natif `Stats` fourni par Three.js. Leur intégration est isolée dans [`src/tools/Stats.js`](./src/tools/Stats.js).
 
-Dans [`src/main.js`](./src/main.js), les options générales sont :
+Dans [`src/experience.js`](./src/experience.js), les options générales sont :
 
 ```js
 const showStats = true;

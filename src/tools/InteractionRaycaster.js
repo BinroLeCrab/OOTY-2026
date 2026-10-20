@@ -22,6 +22,7 @@ class InteractionRaycaster extends THREE.Raycaster {
 
     deactivate() {
         this.enabled = false
+        this.onPointerLeave()
     }
 
     add(object) {
@@ -54,7 +55,9 @@ class InteractionRaycaster extends THREE.Raycaster {
         this.hoveredObject = null
     }
 
-    onPointerDown = () => {
+    onPointerDown = (event) => {
+        if (!this.enabled) return
+        this.onPointerMove(event)
         const object = this.getIntersectedObject()
 
         if (object?.isClicked) {

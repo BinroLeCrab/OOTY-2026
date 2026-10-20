@@ -36,7 +36,7 @@ class BackgroundMusic {
         this.treble.frequency.value = 5000;
         this.treble.gain.value = 0;
 
-        // Connect the audio nodes
+        // Relier les n?uds audio
         source.disconnect(); // déconnecte le noeud audio de la musique du contexte audio
         source.connect(this.bass)
         .connect(this.mids)

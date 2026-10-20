@@ -9,6 +9,6 @@ export default class TemplateObject extends THREE.Mesh {
 	}
 
 	update(time) {
-		// Add per-frame animation here.
+		// Ajouter ici les animations ? effectuer ? chaque image.
 	}
 }

@@ -1,16 +1,17 @@
 <!doctype html>
-<html lang="en">
+<html lang="fr">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>bp-tsl</title>
+    <title>OOTY — Webcam Arduino</title>
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
-    <video id="webcam" autoplay playsinline></video>
-    <canvas id="webcamCanvas"></canvas>
+    <video id="webcam" autoplay playsinline muted></video>
+    <canvas id="webcamCanvas" hidden></canvas>
     <canvas class="threejs"></canvas>
+    <aside id="shader-info" aria-label="Informations du shader actif"></aside>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

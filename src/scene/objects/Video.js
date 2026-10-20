@@ -9,6 +9,7 @@ export default class Video extends THREE.Mesh {
 
 		super(geometry, material);
 
+
 		// this.rotation.x = -Math.PI * 0.5;
 		this.receiveShadow = true;
 

@@ -10,7 +10,7 @@ export default class PostProcessing {
 
 		this.createBloomPass();
 
-		// Add another effect by creating a dedicated method:
+		// Ajouter un autre effet en cr?ant une m?thode d?di?e :
 		// this.createCustomPass();
 
 		this.buildPipeline();
@@ -31,23 +31,23 @@ export default class PostProcessing {
 		);
 	}
 
-	// Example of an additional post-processing pass:
+	// Exemple d?une ?tape suppl?mentaire de post-traitement :
 	//
 	// createCustomPass() {
 	// 	this.customSettings = {
-	// 		// Add the effect parameters here.
+	// 		// Ajouter ici les param?tres de l?effet.
 	// 	};
 	//
 	// 	this.customPass = customEffect(
 	// 		this.sceneOutput,
-	// 		// Pass the effect parameters here.
+	// 		// Transmettre ici les param?tres de l?effet.
 	// 	);
 	// }
 
 	buildPipeline() {
 		this.pipeline.outputNode = this.sceneOutput.add(this.bloomPass);
 
-		// Chain another pass after the bloom:
+		// Ajouter une autre ?tape apr?s le halo lumineux :
 		// this.pipeline.outputNode = this.sceneOutput
 		// 	.add(this.bloomPass)
 		// 	.add(this.customPass);
