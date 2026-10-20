@@ -7,7 +7,7 @@ const BLE_PACKET_DELAY = 4;
 const IMAGE_WIDTH = 384;
 const BLOCK_LINES = 20;
 const PAPER_FEED_LINES = 64;
-const IMAGE_CONTRAST = 1;
+const IMAGE_CONTRAST = 2.4;
 const GRAYSCALE_LEVELS = 14;
 
 function createPrinterPanel() {
@@ -20,6 +20,7 @@ function createPrinterPanel() {
 			Image à imprimer
 			<input type="file" accept="image/*" data-image />
 		</label>
+		<canvas data-preview hidden></canvas>
 		<button type="button" data-action="print" disabled>Imprimer l'image</button>
 		<output data-status aria-live="polite">Non connectée</output>
 	`;
@@ -66,6 +67,28 @@ function toMonochromeRaster(image) {
 	}
 
 	return { width, height, raster };
+}
+
+function drawRasterPreview(canvas, raster) {
+	canvas.width = raster.width;
+	canvas.height = raster.height;
+	canvas.hidden = false;
+	const context = canvas.getContext("2d");
+
+	if (!context) {
+		throw new Error("Le canvas d'aperçu n'est pas disponible.");
+	}
+
+	const imageData = context.createImageData(raster.width, raster.height);
+	for (let index = 0; index < raster.raster.length; index += 1) {
+		const displayValue = 255 - raster.raster[index];
+		const pixel = index * 4;
+		imageData.data[pixel] = displayValue;
+		imageData.data[pixel + 1] = displayValue;
+		imageData.data[pixel + 2] = displayValue;
+		imageData.data[pixel + 3] = 255;
+	}
+	context.putImageData(imageData, 0, 0);
 }
 
 function crc8(data, start, length) {
@@ -226,6 +249,7 @@ export function initializeThermalPrinter() {
 	const connectButton = panel.querySelector('[data-action="connect"]');
 	const printButton = panel.querySelector('[data-action="print"]');
 	const imageInput = panel.querySelector("[data-image]");
+	const previewCanvas = panel.querySelector("[data-preview]");
 	const status = panel.querySelector("[data-status]");
 	let writeCharacteristic = null;
 
@@ -233,6 +257,24 @@ export function initializeThermalPrinter() {
 		status.textContent = message;
 		status.dataset.error = String(isError);
 	};
+
+	imageInput.addEventListener("change", async () => {
+		const [file] = imageInput.files;
+		if (!file) {
+			previewCanvas.hidden = true;
+			return;
+		}
+
+		try {
+			const image = await loadImage(file);
+			const raster = toMonochromeRaster(image);
+			drawRasterPreview(previewCanvas, raster);
+			setStatus(`Aperçu prêt : ${raster.width} × ${raster.height} pixels.`);
+		} catch (error) {
+			previewCanvas.hidden = true;
+			setStatus(`Aperçu impossible : ${error.message}`, true);
+		}
+	});
 
 	connectButton.addEventListener("click", async () => {
 		if (!("bluetooth" in navigator)) {
