@@ -3,7 +3,7 @@ import { lzo1xCompress } from "lzo1x";
 const KNOWN_SERVICE_UUID = "0000ae30-0000-1000-8000-00805f9b34fb";
 const WRITE_CHARACTERISTIC_UUID = "0000ae01-0000-1000-8000-00805f9b34fb";
 const BLE_PACKET_SIZE = 20;
-const BLE_PACKET_DELAY = 0;
+const BLE_PACKET_DELAY = 4;
 const IMAGE_WIDTH = 384;
 const BLOCK_LINES = 20;
 const PAPER_FEED_LINES = 64;
@@ -102,19 +102,20 @@ function createPrintLinesCommand(data) {
 }
 
 function createPrintCommands({ width, height, raster }) {
-	const prepared = new Uint8Array(width * (height + 1));
-	prepared.set(raster, width);
+	const padded = new Uint8Array(width * (height + 1));
+	padded.set(raster, width);
+	const feed = new Uint8Array([PAPER_FEED_LINES & 0xff, PAPER_FEED_LINES >> 8]);
+	const feedCommand = createCommand(0xa1, feed);
 	const commands = [];
 	const blockSize = width * BLOCK_LINES;
 
-	for (let offset = 0; offset < raster.length; offset += blockSize) {
-		commands.push(
-			createPrintLinesCommand(prepared.slice(offset, offset + blockSize)),
-		);
+	for (let offset = 0; offset < padded.length; offset += blockSize) {
+		const block = new Uint8Array(blockSize);
+		block.set(padded.slice(offset, offset + blockSize));
+		commands.push(createPrintLinesCommand(block));
 	}
 
-	const feed = new Uint8Array([PAPER_FEED_LINES & 0xff, PAPER_FEED_LINES >> 8]);
-	commands.push(createCommand(0xa1, feed));
+	commands.push(feedCommand);
 	const totalLength = commands.reduce((length, command) => length + command.length, 0);
 	const payload = new Uint8Array(totalLength);
 	let offset = 0;
