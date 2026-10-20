@@ -34,9 +34,8 @@ export default class WebSocketClient {
 			if (this.disposed) return;
 	
 			// Compatibilité avec l'ancien relais qui envoyait un simple texte.
-			// Le modulo permet de revenir au mode 0 après le mode 3.
+			// Valider ajoute une couche du même shader sans changer le mode actif.
 			if (event.data === "Validation") {
-				this.currentMode = (this.currentMode + 1) % SHADER_MODE_COUNT;
 				this.onMode(this.currentMode);
 				console.info(`Validation reçue : shader ${this.currentMode}.`);
 				return;

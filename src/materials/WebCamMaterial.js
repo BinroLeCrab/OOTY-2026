@@ -4,14 +4,18 @@ import webcam from "../tools/WebCam";
 import sizes from "../utils/Sizes";
 import { hueShader } from "../shaders/hue/hueShader";
 import { saturationShader } from "../shaders/saturation/saturationShader";
-import { glitchShader } from "../shaders/glitch/glitchShader";
+import { glitchShader, glitchColumnShader } from "../shaders/glitch/glitchShader";
 import { deformationShader } from "../shaders/deformation/deformationShader";
 
 const CAMERA_SHADERS = [
 	{ name: "Variation de teinte", shader: hueShader },
 	{ name: "Saturation", shader: saturationShader },
-	{ name: "Glitch / CRT", shader: glitchShader },
-	{ name: "Déformation", warp: deformationShader },
+	{
+		name: "Glitch / Colonnes",
+		warp: (coords, intensity, coverScale) => glitchShader(coords, intensity, coverScale),
+		shade: (color, intensity, coords, coverScale) => glitchColumnShader(color, intensity, coords, coverScale),
+	},
+	{ name: "Déformation", warp: (coords, intensity) => deformationShader(coords, intensity) },
 ];
 
 class WebCamMaterial extends THREE.MeshBasicNodeMaterial {
@@ -79,8 +83,14 @@ class WebCamMaterial extends THREE.MeshBasicNodeMaterial {
 		// Composer les lectures de l?image pour conserver les couches pr?c?dentes lors de la d?formation.
 		const sample = this.shaderStack.reduce((previous, layer) => {
 			const effect = CAMERA_SHADERS[layer.mode];
+			if (effect.shade) {
+				return (position) => effect.shade(
+					previous(effect.warp(position, layer.intensity, this.coverScale)),
+					layer.intensity, position, this.coverScale
+				);
+			}
 			return effect.warp
-				? (position) => previous(effect.warp(position, layer.intensity))
+				? (position) => previous(effect.warp(position, layer.intensity, this.coverScale))
 				: (position) => effect.shader(previous(position), layer.intensity);
 		}, sampleAt);
 		return sample(coords);

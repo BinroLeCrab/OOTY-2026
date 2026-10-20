@@ -1,27 +1,32 @@
-import { dot, Fn, mix, screenCoordinate, uv, vec2, vec3, vec4 } from "three/tsl";
+﻿import { dot, Fn, mix, screenSize, vec2, vec3, vec4 } from "three/tsl";
 
-export const glitchShader = Fn(([inputColor, intensity]) => {
-	const pixel = screenCoordinate.xy;
-	const coords = uv();
-	const hash = (value) => value.sin().mul(43758.5453).fract();
-
-	// Colonnes de phosphore et lignes horizontales de l'écran CRT, en pixels physiques.
-	const column = pixel.x.mod(6).div(2).floor();
-	const phosphor = vec3(
-		column.lessThan(1).select(1, 0.55),
-		column.equal(1).select(1, 0.55),
-		column.greaterThan(1).select(1, 0.55)
-	);
-	const scanline = pixel.y.mul(Math.PI / 2).sin().mul(0.16).add(0.84);
-	const grain = hash(dot(pixel, vec2(12.9898, 78.233))).sub(0.5).mul(0.07);
-
-	// Bandes d'interférence fixes : la trame CRT n'est pas animée.
-	const band = coords.y.mul(32).floor();
-	const bandNoise = hash(band.mul(127.1));
-	const interference = bandNoise.greaterThan(0.985).select(0.12, 0);
-	const vignette = coords.sub(0.5).length().smoothstep(0.25, 0.72).mul(0.28).oneMinus();
-
-	const crt = inputColor.rgb.mul(phosphor).mul(scanline).mul(vignette)
-		.add(grain).add(vec3(0.1, 0.7, 1).mul(interference)).clamp(0, 1);
-	return vec4(mix(inputColor.rgb, crt, intensity), inputColor.a);
+// Une grille fine, plus espacée horizontalement pour former des colonnes.
+export const glitchShader = Fn(([coords, intensity, coverScale]) => {
+	const strength = intensity.clamp(0, 1);
+	const screenUv = coords.sub(0.5).div(coverScale).add(0.5);
+	const cellSize = vec2(10, 4);
+	const sampleUv = screenUv.mul(screenSize).div(cellSize).floor()
+		.add(0.5).mul(cellSize).div(screenSize);
+	const sampleCoords = sampleUv.sub(0.5).mul(coverScale).add(0.5).clamp(0, 1);
+	return strength.greaterThan(0).select(sampleCoords, coords);
 });
+
+export const glitchColumnShader = Fn(([inputColor, intensity, coords, coverScale]) => {
+	const strength = intensity.clamp(0, 1);
+	const screenUv = coords.sub(0.5).div(coverScale).add(0.5);
+	const grid = screenUv.mul(screenSize).div(vec2(10, 4));
+	const local = grid.fract().sub(0.5).abs();
+	const columnNoise = grid.x.floor().mul(127.1).sin().mul(43758.5453).fract();
+
+	// Des points étroits alignés en colonnes, avec un halo autour du cœur.
+	const core = local.x.smoothstep(0.07, 0.18).oneMinus()
+		.mul(local.y.smoothstep(0.19, 0.43).oneMinus());
+	const halo = local.x.mul(7).pow(2).add(local.y.mul(2).pow(2)).negate().exp().mul(0.22);
+	const luminance = dot(inputColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+	// Les ombres disparaissent et chaque colonne a un seuil légèrement différent.
+	const threshold = columnNoise.mul(0.14).add(0.07);
+	const light = luminance.smoothstep(threshold, threshold.add(0.32));
+	const columns = inputColor.rgb.mul(light).mul(core.mul(2.4).add(halo)).clamp(0, 1);
+	return vec4(mix(inputColor.rgb, columns, strength), inputColor.a);
+});
+

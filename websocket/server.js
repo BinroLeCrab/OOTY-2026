@@ -41,16 +41,16 @@ function broadcast(message) {
 	return delivered;
 }
 
-// Bouton : sauvegarder l'effet actif et passer au suivant (retour a 0 apres 3).
+// Bouton : figer l'effet actif et superposer une nouvelle couche du même shader.
 function reportValidation() {
-	console.info("Bouton : shader " + (currentMode + 1) + " -> shader " + (((currentMode + 1) % 4) + 1));
-	reportMode((currentMode + 1) % 4, true);
+	console.info("Bouton : superposition du shader " + (currentMode + 1));
+	reportMode(currentMode, true);
 }
 
 // savePrevious = true pour le bouton, false pour une selection avec l'encodeur.
 function reportMode(mode, savePrevious = false) {
 	// Ne rien changer si l'encodeur selectionne le mode deja actif.
-	if (mode === currentMode) return;
+	if (mode === currentMode && !savePrevious) return;
 	currentMode = mode;
 	const layer = { mode, intensity: 1 - Math.abs(currentAngle) / 90 };
 	if (savePrevious) {

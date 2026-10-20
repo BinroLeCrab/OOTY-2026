@@ -54,6 +54,7 @@ export default class ArduinoShaderController {
 		} else {
 			// Compatibilité avec les messages qui ne contiennent que le mode.
 			this.setSelectedShader(mode);
+			this.savedLayerCount += 1;
 		}
 		this.updateInfoPanel();
 		console.info(`Shader sélectionné : ${this.getShaderName(mode)} (mode ${mode}).`);
