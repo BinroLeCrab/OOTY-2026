@@ -102,20 +102,19 @@ function createPrintLinesCommand(data) {
 }
 
 function createPrintCommands({ width, height, raster }) {
-	const padded = new Uint8Array(width * (height + 1));
-	padded.set(raster, width);
-	const feed = new Uint8Array([PAPER_FEED_LINES & 0xff, PAPER_FEED_LINES >> 8]);
-	const feedCommand = createCommand(0xa1, feed);
+	const prepared = new Uint8Array(width * (height + 1));
+	prepared.set(raster, width);
 	const commands = [];
 	const blockSize = width * BLOCK_LINES;
 
-	for (let offset = 0; offset < padded.length; offset += blockSize) {
-		const block = new Uint8Array(blockSize);
-		block.set(padded.slice(offset, offset + blockSize));
-		commands.push(createPrintLinesCommand(block));
+	for (let offset = 0; offset < raster.length; offset += blockSize) {
+		commands.push(
+			createPrintLinesCommand(prepared.slice(offset, offset + blockSize)),
+		);
 	}
 
-	commands.push(feedCommand);
+	const feed = new Uint8Array([PAPER_FEED_LINES & 0xff, PAPER_FEED_LINES >> 8]);
+	commands.push(createCommand(0xa1, feed));
 	const totalLength = commands.reduce((length, command) => length + command.length, 0);
 	const payload = new Uint8Array(totalLength);
 	let offset = 0;
