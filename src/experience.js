@@ -7,6 +7,7 @@ import * as stats from "./tools/Stats";
 import ArduinoShaderController from "./controllers/ArduinoShaderController";
 import webcam from "./tools/WebCam";
 import sizes from "./utils/Sizes";
+import AtmosphereAudio from "./tools/AtmosphereAudio";
 
 const showStats = true;
 const logRendererInfo = false;
@@ -22,7 +23,10 @@ if (!canvas) {
 
 const scene = new Scene();
 
-const arduinoController = new ArduinoShaderController(scene.video);
+const atmosphereAudio = new AtmosphereAudio();
+const arduinoController = new ArduinoShaderController(scene.video, (angle) => {
+	atmosphereAudio.bip.setAngle(angle);
+});
 
 // --- CAM?RA
 
@@ -106,6 +110,7 @@ const tick = () => {
 		delta: timer.getDelta(),
 		elapsed: timer.getElapsed(),
 	};
+	atmosphereAudio.update(time.delta);
 
 	// --- Mettre ? jour la sc?ne
 	// Objets de la sc?ne
@@ -136,6 +141,7 @@ if (import.meta.hot) {
 	import.meta.hot.dispose(() => {
 		renderer.setAnimationLoop(null);
 		arduinoController.dispose();
+		atmosphereAudio.dispose();
 		webcam.dispose();
 		interactionRaycaster.dispose();
 		scene.video.material.dispose();

@@ -62,7 +62,11 @@ function reportMode(mode, savePrevious = false) {
 		shaderStack[shaderStack.length - 1] = layer;
 	}
 	// Envoyer la pile complete au navigateur pour synchroniser les effets.
-	const connectedBrowsers = broadcast(JSON.stringify({ type: "mode", mode, shaders: shaderStack }));
+	const connectedBrowsers = broadcast(JSON.stringify({
+		type: "mode", mode, shaders: shaderStack,
+		// Distinguer les actions des simples synchronisations pour déclencher le bon son.
+		action: savePrevious ? "validation" : "click",
+	}));
 	console.info((savePrevious ? "Validation" : "Selection sans sauvegarde") + " : shader " + (mode + 1));
 	console.info("Mode envoye a " + connectedBrowsers + " navigateur(s).");
 	if (connectedBrowsers === 0) console.warn("Aucun navigateur connecte : le shader ne peut pas changer.");
@@ -127,19 +131,20 @@ serialPort.on("data", (chunk) => {
 		const gyroscopeMatch = /^Gyroscope\s*:\s*(-?(?:\d+(?:\.\d*)?|\.\d+))$/i.exec(line);
 		if (gyroscopeMatch) {
 			const angle = Number(gyroscopeMatch[1]);
-			if (Number.isFinite(angle) && angle >= -90 && angle <= 90) {
-				currentAngle = angle;
+			if (Number.isFinite(angle)) {
+				// Garder une intensité valide tout en transmettant l'angle brut au navigateur.
+				currentAngle = Math.max(-90, Math.min(90, angle));
 				// Modifier seulement la couche active : 100 % a plat, 0 % a +/-90 degres.
-				shaderStack.at(-1).intensity = 1 - Math.abs(angle) / 90;
+				shaderStack.at(-1).intensity = 1 - Math.abs(currentAngle) / 90;
 				const connectedBrowsers = broadcast(JSON.stringify({ type: "gyroscope", angle }));
 				const now = Date.now();
 				// Le rendu suit chaque mesure ; les logs sont limites a une fois toutes les 500 ms.
 				if (now - lastGyroscopeLogAt >= 500) {
-					console.info("Gyroscope : " + angle.toFixed(1) + " deg | intensite shader : " + ((1 - Math.abs(angle) / 90) * 100).toFixed(0) + " % | envoye a " + connectedBrowsers + " navigateur(s).");
+					console.info("Gyroscope : " + angle.toFixed(1) + " deg | intensite shader : " + ((1 - Math.abs(currentAngle) / 90) * 100).toFixed(0) + " % | envoye a " + connectedBrowsers + " navigateur(s).");
 					lastGyroscopeLogAt = now;
 				}
 			} else {
-				console.warn("Angle du gyroscope ignore (attendu entre -90 et 90) : " + line);
+				console.warn("Angle du gyroscope invalide : " + line);
 			}
 			newlineIndex = serialBuffer.indexOf("\n");
 			continue;

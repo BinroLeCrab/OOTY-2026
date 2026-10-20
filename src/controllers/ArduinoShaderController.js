@@ -1,11 +1,13 @@
 import WebSocketClient from "../websocket/WebSocketClient";
+import ActionSounds from "../tools/ActionSounds";
 
 const SHADER_MODE_COUNT = 4;
 
 // Relie les données reçues par WebSocket au matériau de la webcam.
 // Le relais Node.js décide des sauvegardes ; ce contrôleur applique leur résultat.
 export default class ArduinoShaderController {
-	constructor(target) {
+	constructor(target, onGyroscopeAngle = () => {}) {
+		this.onGyroscopeAngle = onGyroscopeAngle;
 		// État initial : premier effet à 100 %, aucun effet sauvegardé.
 		this.mode = 0;
 		this.gyroscopeAngle = null;
@@ -18,15 +20,18 @@ export default class ArduinoShaderController {
 		this.updateInfoPanel();
 
 		// Associer chaque type de donnée reçue à la méthode qui la traite.
+		this.actionSounds = new ActionSounds();
 		this.webSocketClient = new WebSocketClient(
 			(mode, shaders) => this.setMode(mode, shaders),
-			(angle) => this.setGyroscopeAngle(angle)
+			(angle) => this.setGyroscopeAngle(angle),
+			(action) => this.actionSounds.play(action)
 		);
 	}
 
 	dispose() {
 		// Fermer la connexion et empêcher les nouvelles tentatives de connexion.
 		this.webSocketClient.dispose();
+		this.actionSounds.dispose();
 	}
 
 	setTarget(target) {
@@ -61,15 +66,16 @@ export default class ArduinoShaderController {
 	}
 
 	setGyroscopeAngle(angle) {
-		// Refuser les mesures invalides ou en dehors de la plage prévue.
-		if (!Number.isFinite(angle) || angle < -90 || angle > 90) {
+		// Accepter les angles finis et borner ensuite les paramètres du rendu et de l'audio.
+		if (!Number.isFinite(angle)) {
 			throw new RangeError(`Invalid gyroscope angle: ${angle}`);
 		}
 
 		this.gyroscopeAngle = angle;
+		this.onGyroscopeAngle(Math.max(-90, Math.min(90, angle)));
 		// Convertir l'inclinaison en intensité : 100 % à plat, 0 % à ±90°.
 		// Math.abs permet d'obtenir la même intensité des deux côtés.
-		this.setShaderIntensity(1 - Math.abs(angle) / 90);
+		this.setShaderIntensity(Math.max(0, 1 - Math.abs(angle) / 90));
 	}
 
 	setShaderIntensity(intensity) {
