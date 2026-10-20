@@ -7,8 +7,10 @@ const BLE_PACKET_DELAY = 4;
 const IMAGE_WIDTH = 384;
 const BLOCK_LINES = 20;
 const PAPER_FEED_LINES = 64;
-const IMAGE_CONTRAST = 2.4;
 const GRAYSCALE_LEVELS = 14;
+const IMAGE_SHARPNESS = 1.1;
+const HISTOGRAM_PERCENTILE = 0.2;
+const CONTRAST_SCALE = 0.46;
 
 function createPrinterPanel() {
 	const panel = document.createElement("section");
@@ -47,22 +49,111 @@ function toMonochromeRaster(image) {
 
 	const pixels = context.getImageData(0, 0, width, height).data;
 	const raster = new Uint8Array(width * height);
+	const grayscale = new Float32Array(width * height);
+	const histogram = new Uint32Array(256);
 
 	for (let y = 0; y < height; y += 1) {
 		for (let x = 0; x < width; x += 1) {
 			const pixel = (y * width + x) * 4;
-			const luminance =
+			grayscale[y * width + x] =
 				0.299 * pixels[pixel] +
 				0.587 * pixels[pixel + 1] +
 				0.114 * pixels[pixel + 2];
+		}
+	}
 
-			const darkness = Math.max(
+	const sharpenedGrayscale = new Float32Array(grayscale);
+	for (let y = 0; y < height; y += 1) {
+		for (let x = 0; x < width; x += 1) {
+			const index = y * width + x;
+			const center = sharpenedGrayscale[index];
+			const left = sharpenedGrayscale[index - (x > 0 ? 1 : 0)];
+			const right = sharpenedGrayscale[index + (x + 1 < width ? 1 : 0)];
+			const top = sharpenedGrayscale[index - (y > 0 ? width : 0)];
+			const bottom = sharpenedGrayscale[index + (y + 1 < height ? width : 0)];
+
+			const sharpened = Math.max(
 				0,
-				Math.min(255, ((255 - luminance) - 128) * IMAGE_CONTRAST + 128),
+				Math.min(
+					255,
+					center * (1 + 4 * IMAGE_SHARPNESS) -
+						IMAGE_SHARPNESS * (left + right + top + bottom),
+				),
 			);
-			const level = Math.round((darkness / 255) * (GRAYSCALE_LEVELS - 1));
-			raster[y * width + x] =
-				Math.round((level * 255) / (GRAYSCALE_LEVELS - 1));
+			grayscale[index] = sharpened;
+			histogram[Math.round(sharpened)] += 1;
+		}
+	}
+
+	const percentileCount = width * height * HISTOGRAM_PERCENTILE;
+	let cumulative = 0;
+	let lowValue = 0;
+	let highValue = 255;
+
+	for (let value = 0; value < histogram.length; value += 1) {
+		cumulative += histogram[value];
+		if (cumulative >= percentileCount) {
+			lowValue = Math.min(value, 70);
+			break;
+		}
+	}
+
+	cumulative = 0;
+	for (let value = 255; value >= 0; value -= 1) {
+		cumulative += histogram[value];
+		if (cumulative >= percentileCount) {
+			highValue = Math.max(value, 185);
+			break;
+		}
+	}
+
+	const lowOutput = lowValue * CONTRAST_SCALE;
+	const highOutput = highValue + (255 - highValue) * (1 - CONTRAST_SCALE);
+	const inputRange = Math.max(1, highValue - lowValue);
+
+	for (let index = 0; index < grayscale.length; index += 1) {
+		const value = grayscale[index];
+		let adjusted;
+		if (value <= lowValue) {
+			adjusted = value * CONTRAST_SCALE;
+		} else if (value >= highValue) {
+			adjusted = value + (255 - value) * (1 - CONTRAST_SCALE);
+		} else {
+			adjusted = lowOutput +
+				((value - lowValue) * (highOutput - lowOutput)) / inputRange;
+		}
+
+		grayscale[index] = Math.max(0, Math.min(255, Math.trunc(adjusted)));
+	}
+
+	const quantizationStep = 256 / GRAYSCALE_LEVELS;
+	for (let y = 0; y < height; y += 1) {
+		for (let x = 0; x < width; x += 1) {
+			const index = y * width + x;
+			const value = grayscale[index];
+			const level = Math.min(
+				GRAYSCALE_LEVELS - 1,
+				Math.floor(value / quantizationStep),
+			);
+			const quantized = Math.round(
+				(level * 255) / (GRAYSCALE_LEVELS - 1),
+			);
+			const error = value - quantized;
+			grayscale[index] = quantized;
+			raster[index] = 255 - quantized;
+
+			if (x + 1 < width) {
+				grayscale[index + 1] += (error * 7) / 16;
+			}
+			if (y + 1 < height) {
+				grayscale[index + width] += (error * 5) / 16;
+				if (x > 0) {
+					grayscale[index + width - 1] += (error * 3) / 16;
+				}
+				if (x + 1 < width) {
+					grayscale[index + width + 1] += error / 16;
+				}
+			}
 		}
 	}
 
