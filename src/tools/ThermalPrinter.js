@@ -7,6 +7,8 @@ const BLE_PACKET_DELAY = 4;
 const IMAGE_WIDTH = 384;
 const BLOCK_LINES = 20;
 const PAPER_FEED_LINES = 64;
+const IMAGE_CONTRAST = 1;
+const GRAYSCALE_LEVELS = 14;
 
 function createPrinterPanel() {
 	const panel = document.createElement("section");
@@ -44,29 +46,23 @@ function toMonochromeRaster(image) {
 
 	const pixels = context.getImageData(0, 0, width, height).data;
 	const raster = new Uint8Array(width * height);
-	let luminanceSum = 0;
-	const luminance = new Uint8Array(width * height);
 
 	for (let y = 0; y < height; y += 1) {
 		for (let x = 0; x < width; x += 1) {
 			const pixel = (y * width + x) * 4;
-			const value =
+			const luminance =
 				0.299 * pixels[pixel] +
 				0.587 * pixels[pixel + 1] +
 				0.114 * pixels[pixel + 2];
 
-			luminance[y * width + x] = value;
-			luminanceSum += value;
+			const darkness = Math.max(
+				0,
+				Math.min(255, ((255 - luminance) - 128) * IMAGE_CONTRAST + 128),
+			);
+			const level = Math.round((darkness / 255) * (GRAYSCALE_LEVELS - 1));
+			raster[y * width + x] =
+				Math.round((level * 255) / (GRAYSCALE_LEVELS - 1));
 		}
-	}
-
-	const threshold = Math.max(
-		0,
-		Math.min(255, luminanceSum / luminance.length - 13),
-	);
-
-	for (let index = 0; index < luminance.length; index += 1) {
-		raster[index] = luminance[index] <= threshold ? 255 : 0;
 	}
 
 	return { width, height, raster };
