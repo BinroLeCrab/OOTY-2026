@@ -44,17 +44,29 @@ function toMonochromeRaster(image) {
 
 	const pixels = context.getImageData(0, 0, width, height).data;
 	const raster = new Uint8Array(width * height);
+	let luminanceSum = 0;
+	const luminance = new Uint8Array(width * height);
 
 	for (let y = 0; y < height; y += 1) {
 		for (let x = 0; x < width; x += 1) {
 			const pixel = (y * width + x) * 4;
-			const luminance =
+			const value =
 				0.299 * pixels[pixel] +
 				0.587 * pixels[pixel + 1] +
 				0.114 * pixels[pixel + 2];
 
-			raster[y * width + x] = 255 - luminance;
+			luminance[y * width + x] = value;
+			luminanceSum += value;
 		}
+	}
+
+	const threshold = Math.max(
+		0,
+		Math.min(255, luminanceSum / luminance.length - 13),
+	);
+
+	for (let index = 0; index < luminance.length; index += 1) {
+		raster[index] = luminance[index] <= threshold ? 255 : 0;
 	}
 
 	return { width, height, raster };
