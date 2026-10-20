@@ -42,3 +42,42 @@ body
     white-space: pre-line;
     pointer-events: none;
 }
+
+#thermal-printer {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 2;
+    display: grid;
+    gap: 8px;
+    width: min(320px, calc(100vw - 32px));
+    padding: 14px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.72);
+    color: #fff;
+    font: 14px/1.4 system-ui, sans-serif;
+}
+
+#thermal-printer label {
+    display: grid;
+    gap: 4px;
+}
+
+#thermal-printer button,
+#thermal-printer input {
+    min-height: 32px;
+    font: inherit;
+}
+
+#thermal-printer button {
+    cursor: pointer;
+}
+
+#thermal-printer button:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+#thermal-printer output[data-error="true"] {
+    color: #ffb4b4;
+}
