@@ -3,7 +3,7 @@ import { lzo1xCompress } from "lzo1x";
 const KNOWN_SERVICE_UUID = "0000ae30-0000-1000-8000-00805f9b34fb";
 const WRITE_CHARACTERISTIC_UUID = "0000ae01-0000-1000-8000-00805f9b34fb";
 const BLE_PACKET_SIZE = 20;
-const BLE_PACKET_DELAY = 4;
+const BLE_PACKET_DELAY = 0;
 const IMAGE_WIDTH = 384;
 const BLOCK_LINES = 20;
 const PAPER_FEED_LINES = 64;
@@ -270,10 +270,6 @@ async function writePayload(characteristic, data) {
 		packetSize: BLE_PACKET_SIZE,
 		writeWithoutResponse: characteristic.properties.writeWithoutResponse,
 	});
-	console.info(
-		"[ThermalPrinter] Début du flux (hex)",
-		Array.from(data.slice(0, 40), (value) => value.toString(16).padStart(2, "0")).join(" "),
-	);
 	if (!characteristic.properties.writeWithoutResponse && !characteristic.properties.write) {
 		throw new Error("La caractéristique ne permet pas l'écriture BLE.");
 	}
