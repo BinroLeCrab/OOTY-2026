@@ -8,7 +8,8 @@ export const glitchShader = Fn(([coords, intensity, coverScale]) => {
 	const sampleUv = screenUv.mul(screenSize).div(cellSize).floor()
 		.add(0.5).mul(cellSize).div(screenSize);
 	const sampleCoords = sampleUv.sub(0.5).mul(coverScale).add(0.5).clamp(0, 1);
-	return strength.greaterThan(0).select(sampleCoords, coords);
+	// Faire progresser la pixellisation avec l'intensite, sans seuil brutal.
+	return mix(coords, sampleCoords, strength);
 });
 
 export const glitchColumnShader = Fn(([inputColor, intensity, coords, coverScale]) => {

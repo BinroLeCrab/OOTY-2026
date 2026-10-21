@@ -7,13 +7,17 @@ export default class BipAudio {
 		this.wait = 0;
 		this.sound = new Howl({
 			src: [`${import.meta.env.BASE_URL}sounds/bipbip.mp3`],
-			volume: 0.9,
+			volume: 0,
 			onloaderror: (_id, error) => console.error("Impossible de charger sounds/bipbip.mp3 :", error),
 		});
 	}
 
 	setAngle(angle) {
 		if (Number.isFinite(angle)) this.intensity = Math.max(0, 1 - Math.abs(angle) / 90);
+	}
+
+	setIntensity(intensity) {
+		if (Number.isFinite(intensity)) this.intensity = Math.max(0, Math.min(1, intensity));
 	}
 
 	update(delta) {

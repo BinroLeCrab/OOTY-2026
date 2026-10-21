@@ -16,7 +16,7 @@ export default class AtmosphereAudio {
   };
   this.audio = new Howl({
    src: [`${import.meta.env.BASE_URL}sounds/atmosphere.mp3`],
-   loop: true, volume: 0.4,
+   loop: true, volume: 0.7,
    onplay: () => {
     if (!this.enabled || this.disposed) return;
     this.bip.play();

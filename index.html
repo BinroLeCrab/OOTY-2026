@@ -4,10 +4,18 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@1,300&display=swap" rel="stylesheet" />
     <title>OOTY — Webcam Arduino</title>
     <link rel="stylesheet" href="/src/style.css" />
   </head>
-  <body>
+  <body class="on-home">
+    <main id="home" aria-label="Accueil Wabi-Sabi">
+      <button id="start-experience" type="button" aria-label="Commencer l’expérience"></button>
+      <p id="home-status" class="visually-hidden" role="status" aria-live="polite"></p>
+      <p id="home-subtitles" hidden aria-label="Sous-titres de la voix off"></p>
+    </main>
     <video id="webcam" autoplay playsinline muted></video>
     <canvas id="webcamCanvas" hidden></canvas>
     <canvas class="threejs"></canvas>

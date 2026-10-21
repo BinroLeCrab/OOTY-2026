@@ -4,11 +4,12 @@ class WebCam {
 		this.disposed = false;
 
 		if (!navigator.mediaDevices?.getUserMedia) {
+			this.ready = Promise.resolve(false);
 			console.error("Webcam indisponible : utiliser localhost ou HTTPS.");
 			return;
 		}
 
-		navigator.mediaDevices
+		this.ready = navigator.mediaDevices
 			.getUserMedia({
 				video: {
 					width: {
@@ -19,16 +20,19 @@ class WebCam {
 					},
 				},
 			})
-			.then((stream) => {
+			.then(async (stream) => {
 				if (this.disposed) {
 					stream.getTracks().forEach((track) => track.stop());
 					return;
 				}
 				this.video.srcObject = stream;
 				this.stream = stream;
+				await this.video.play();
+				return true;
 			})
 			.catch((error) => {
 				console.error("Erreur d'accès à la webcam :", error);
+				return false;
 			});
 	}
 

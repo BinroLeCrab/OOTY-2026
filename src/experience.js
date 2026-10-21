@@ -24,8 +24,8 @@ if (!canvas) {
 const scene = new Scene();
 
 const atmosphereAudio = new AtmosphereAudio();
-const arduinoController = new ArduinoShaderController(scene.video, (angle) => {
-	atmosphereAudio.bip.setAngle(angle);
+const arduinoController = new ArduinoShaderController(scene.video, (intensity) => {
+	atmosphereAudio.bip.setIntensity(intensity);
 });
 
 // --- CAM?RA

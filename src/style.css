@@ -43,3 +43,47 @@ body
     pointer-events: none;
 }
 
+
+body.on-home { background: #eee9df; }
+body.on-home .threejs, body.on-home #webcam, body.on-home #shader-info { visibility: hidden; }
+#home {
+ position: fixed; inset: 0; z-index: 10;
+ display: flex; flex-direction: column; align-items: center; justify-content: center;
+ background: #eee9df url('/img/background.webp') center / cover no-repeat;
+ color: #161612; text-align: center;
+}
+#home[hidden] { display: none; }
+.transition-dissolve {
+ position: fixed;
+ inset: 0;
+ width: 100%;
+ height: 100%;
+ z-index: 11;
+ pointer-events: none;
+}
+#start-experience {
+ position: absolute; inset: 0; width: 100%; height: 100%;
+ border: 0; background: transparent; color: inherit;
+ cursor: pointer;
+}
+#start-experience:focus-visible { outline: 2px solid #38372e; outline-offset: -8px; }
+#start-experience:disabled { cursor: default; }
+.visually-hidden {
+ position: absolute; width: 1px; height: 1px; padding: 0;
+ margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+
+#home-subtitles {
+ pointer-events: none;
+ position: absolute;
+ bottom: max(36px, env(safe-area-inset-bottom));
+ left: 50%;
+ transform: translateX(-50%);
+ width: min(800px, calc(100% - 48px));
+ min-height: 4.5em;
+ font: italic 300 clamp(17px, 2.2vw, 24px)/1.5 'Montserrat', sans-serif;
+ text-wrap: pretty;
+}
+@media (max-height: 600px) {
+ #home-subtitles { bottom: 16px; font-size: 16px; }
+}
