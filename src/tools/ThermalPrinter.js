@@ -6,13 +6,17 @@ const BLE_PACKET_SIZE = 20;
 const BLE_PACKET_DELAY = 0;
 const IMAGE_WIDTH = 384;
 const BLOCK_LINES = 20;
+const GRAY_IMAGE_SPEED = 40;
 const PAPER_FEED_LINES = 64;
 const GRAYSCALE_LEVELS = 14;
 const IMAGE_SHARPNESS = 1.1;
 const HISTOGRAM_PERCENTILE = 0.2;
 const CONTRAST_SCALE = 1;
-const DARK_TONE_GAMMA = 1.3;
+const DARK_TONE_GAMMA = 0.6;
 const BLACK_LEVEL = 48;
+const WHITE_TONE_LIFT = 0.12;
+
+let activeWriteCharacteristic = null;
 
 function createPrinterPanel() {
 	const panel = document.createElement("section");
@@ -126,9 +130,25 @@ function toMonochromeRaster(image) {
 		}
 
 		const normalized = Math.max(0, Math.min(1, adjusted / 255));
-		grayscale[index] = Math.max(
+		const gammaCorrected = Math.max(
 			0,
 			Math.min(255, Math.trunc(255 * normalized ** DARK_TONE_GAMMA)),
+		);
+		const highlightWeight = Math.max(
+			0,
+			Math.min(1, (gammaCorrected - BLACK_LEVEL) / (255 - BLACK_LEVEL)),
+		);
+		grayscale[index] = Math.max(
+			0,
+			Math.min(
+				255,
+				Math.trunc(
+					gammaCorrected +
+						(255 - gammaCorrected) *
+							WHITE_TONE_LIFT *
+							highlightWeight,
+				),
+			),
 		);
 	}
 
@@ -235,6 +255,14 @@ function createPrintLinesCommand(data) {
 	return createCommand(0xcf, payload);
 }
 
+function createGrayModeCommand() {
+	return createCommand(0xbe, new Uint8Array([0x00, 0x01]));
+}
+
+function createGraySpeedCommand() {
+	return createCommand(0xbd, new Uint8Array([GRAY_IMAGE_SPEED]));
+}
+
 function createPrintCommands({ width, height, raster }) {
 	const padded = new Uint8Array(width * (height + 1));
 	padded.set(raster, width);
@@ -243,10 +271,13 @@ function createPrintCommands({ width, height, raster }) {
 	const commands = [];
 	const blockSize = width * BLOCK_LINES;
 
+	commands.push(createGrayModeCommand());
+	commands.push(createGraySpeedCommand());
 	for (let offset = 0; offset < padded.length; offset += blockSize) {
 		const block = new Uint8Array(blockSize);
 		block.set(padded.slice(offset, offset + blockSize));
 		commands.push(createPrintLinesCommand(block));
+		commands.push(createGraySpeedCommand());
 	}
 
 	commands.push(feedCommand);
@@ -323,12 +354,75 @@ async function findWriteCharacteristic(server) {
 		if (writable) {
 			return {
 				characteristic: writable,
+				service,
 				description: `${service.uuid} / ${writable.uuid}`,
 			};
 		}
 	}
 
 	throw new Error("Aucune caractéristique BLE accessible en écriture.");
+}
+
+function bytesToHex(dataView) {
+	return Array.from(
+		new Uint8Array(dataView.buffer, dataView.byteOffset, dataView.byteLength),
+		(value) => value.toString(16).padStart(2, "0"),
+	).join(" ");
+}
+
+async function listenForNotifications(service) {
+	const characteristics = await service.getCharacteristics();
+	const notifiable = characteristics.filter(
+		(characteristic) =>
+			characteristic.properties.notify ||
+			characteristic.properties.indicate,
+	);
+
+	console.info("[ThermalPrinter] Caractéristiques BLE", characteristics.map((characteristic) => ({
+		uuid: characteristic.uuid,
+		properties: characteristic.properties,
+	})));
+
+	for (const characteristic of notifiable) {
+		try {
+			await characteristic.startNotifications();
+			characteristic.addEventListener("characteristicvaluechanged", (event) => {
+				const value = event.target.value;
+				if (!value) {
+					return;
+				}
+				console.info("[ThermalPrinter] Notification BLE reçue", {
+					characteristic: characteristic.uuid,
+					length: value.byteLength,
+					hex: bytesToHex(value),
+				});
+			});
+			console.info("[ThermalPrinter] Notifications activées", characteristic.uuid);
+		} catch (error) {
+			console.warn("[ThermalPrinter] Notifications indisponibles", {
+				characteristic: characteristic.uuid,
+				error: error.message,
+			});
+		}
+	}
+
+	for (const characteristic of characteristics.filter(
+		(characteristic) => characteristic.properties.read,
+	)) {
+		try {
+			const value = await characteristic.readValue();
+			console.info("[ThermalPrinter] Lecture BLE initiale", {
+				characteristic: characteristic.uuid,
+				length: value.byteLength,
+				hex: bytesToHex(value),
+			});
+		} catch (error) {
+			console.warn("[ThermalPrinter] Lecture BLE indisponible", {
+				characteristic: characteristic.uuid,
+				error: error.message,
+			});
+		}
+	}
 }
 
 async function loadImage(file) {
@@ -343,6 +437,34 @@ async function loadImage(file) {
 	}
 }
 
+export async function printImageUrl(dataUrl) {
+	const image = new Image();
+	image.src = dataUrl;
+	await image.decode();
+	await printImage(image);
+}
+
+export async function printImage(image) {
+	if (!(image instanceof HTMLImageElement)) {
+		throw new TypeError("printImage attend un élément HTMLImageElement.");
+	}
+	if (!image.complete || image.naturalWidth === 0) {
+		throw new Error("L'image doit être chargée avant l'impression.");
+	}
+	if (!activeWriteCharacteristic) {
+		throw new Error("Connecte d'abord l'imprimante.");
+	}
+
+	const raster = toMonochromeRaster(image);
+	console.info("[ThermalPrinter] Image convertie", {
+		width: raster.width,
+		height: raster.height,
+		rasterBytes: raster.raster.length,
+	});
+	const commands = createPrintCommands(raster);
+	await writePayload(activeWriteCharacteristic, commands);
+}
+
 export function initializeThermalPrinter() {
 	const panel = createPrinterPanel();
 	const connectButton = panel.querySelector('[data-action="connect"]');
@@ -350,8 +472,6 @@ export function initializeThermalPrinter() {
 	const imageInput = panel.querySelector("[data-image]");
 	const previewCanvas = panel.querySelector("[data-preview]");
 	const status = panel.querySelector("[data-status]");
-	let writeCharacteristic = null;
-
 	const setStatus = (message, isError = false) => {
 		status.textContent = message;
 		status.dataset.error = String(isError);
@@ -398,16 +518,17 @@ export function initializeThermalPrinter() {
 			const server = await device.gatt.connect();
 			console.info("[ThermalPrinter] GATT connecté");
 			const result = await findWriteCharacteristic(server);
-			writeCharacteristic = result.characteristic;
+			activeWriteCharacteristic = result.characteristic;
 			console.info("[ThermalPrinter] Caractéristique d'écriture", {
 				service: result.description.split(" / ")[0],
 				characteristic: result.characteristic.uuid,
 				properties: result.characteristic.properties,
 			});
+			await listenForNotifications(result.service);
 			printButton.disabled = false;
 			setStatus(`Connectée. Canal détecté : ${result.description}`);
 			device.addEventListener("gattserverdisconnected", () => {
-				writeCharacteristic = null;
+				activeWriteCharacteristic = null;
 				printButton.disabled = true;
 				setStatus("Imprimante déconnectée.", true);
 			});
@@ -419,11 +540,6 @@ export function initializeThermalPrinter() {
 	});
 
 	printButton.addEventListener("click", async () => {
-		if (!writeCharacteristic) {
-			setStatus("Connecte d'abord l'imprimante.", true);
-			return;
-		}
-
 		const [file] = imageInput.files;
 		if (!file) {
 			setStatus("Sélectionne une image avant d'imprimer.", true);
@@ -434,19 +550,7 @@ export function initializeThermalPrinter() {
 		setStatus("Conversion et impression en cours...");
 		try {
 			const image = await loadImage(file);
-			const raster = toMonochromeRaster(image);
-			console.info("[ThermalPrinter] Image convertie", {
-				name: file.name,
-				width: raster.width,
-				height: raster.height,
-				rasterBytes: raster.raster.length,
-			});
-			const commands = createPrintCommands(raster);
-			console.info("[ThermalPrinter] Flux préparé", {
-				bytes: commands.length,
-				imageCommands: commands.filter((value) => value[2] === 0xcf).length,
-			});
-			await writePayload(writeCharacteristic, commands);
+			await printImage(image);
 			setStatus("Image envoyée à l'imprimante.");
 		} catch (error) {
 			setStatus(`Impression impossible : ${error.message}`, true);

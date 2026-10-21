@@ -81,3 +81,10 @@ body
 #thermal-printer output[data-error="true"] {
     color: #ffb4b4;
 }
+
+#print-canvas {
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    z-index: 2;
+}
