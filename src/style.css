@@ -43,3 +43,35 @@ body
     pointer-events: none;
 }
 
+#thermal-printer {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 2;
+    padding: 8px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.72);
+    color: #fff;
+    font: 14px/1.4 system-ui, sans-serif;
+}
+
+#thermal-printer button {
+    min-height: 32px;
+    font: inherit;
+}
+
+#thermal-printer button {
+    cursor: pointer;
+}
+
+#thermal-printer button:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+#print-canvas {
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    z-index: 2;
+}
