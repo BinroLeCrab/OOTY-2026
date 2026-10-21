@@ -1,8 +1,12 @@
-import { Fn, hue, vec4 } from "three/tsl";
+import { Fn, hue, saturation, vec4 } from "three/tsl";
 
 export const hueShader = Fn(([inputColor, intensity]) => {
-	// Faire varier la teinte sur 240 degrés.
+	const source = inputColor.toVar();
+	// Parcourir le cercle complet des teintes sur 360 degrés.
 	// Chaque couche possède sa propre intensité : sa teinte reste figée au changement de shader.
-	const hueAngle = intensity.mul((Math.PI * 4) / 3);
-	return vec4(hue(inputColor.rgb, hueAngle), inputColor.a);
+	const strength = intensity.clamp(0, 1);
+	const hueAngle = strength.mul(Math.PI * 2);
+	// Renforcer progressivement les couleurs pendant la rotation de teinte.
+	const vivid = saturation(hue(source.rgb, hueAngle), strength.mul(1.5).add(1));
+	return vec4(vivid.clamp(0, 1), source.a);
 });

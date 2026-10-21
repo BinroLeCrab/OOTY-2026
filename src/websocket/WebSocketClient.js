@@ -3,11 +3,12 @@ const RECONNECT_DELAY = 2000;
 const SHADER_MODE_COUNT = 4;
 
 export default class WebSocketClient {
-	constructor(onMode, onGyroscopeAngle) {
+	constructor(onMode, onGyroscopeAngle, onAction = () => {}) {
 		// Ces fonctions sont fournies par ArduinoShaderController :
 		// elles appliquent les shaders et l'angle reçus au rendu webcam.
 		this.onMode = onMode;
 		this.onGyroscopeAngle = onGyroscopeAngle;
+		this.onAction = onAction;
 		this.currentMode = 0;
 		this.disposed = false;
 		// Réinitialiser les effets au chargement de la page, mais pas à chaque reconnexion.
@@ -34,10 +35,10 @@ export default class WebSocketClient {
 			if (this.disposed) return;
 	
 			// Compatibilité avec l'ancien relais qui envoyait un simple texte.
-			// Le modulo permet de revenir au mode 0 après le mode 3.
+			// Valider ajoute une couche du même shader sans changer le mode actif.
 			if (event.data === "Validation") {
-				this.currentMode = (this.currentMode + 1) % SHADER_MODE_COUNT;
 				this.onMode(this.currentMode);
+				this.onAction("validation");
 				console.info(`Validation reçue : shader ${this.currentMode}.`);
 				return;
 			}
@@ -53,9 +54,9 @@ export default class WebSocketClient {
 	
 			// Un message gyroscope règle seulement l'intensité de la couche active.
 			if (message?.type === "gyroscope") {
-				// Ignorer les angles invalides ou hors de la plage prévue.
+				// Le contrôleur borne les angles utilisés pour l'intensité et l'audio.
 				if (
-					!Number.isFinite(message.angle) || message.angle < -90 || message.angle > 90
+					!Number.isFinite(message.angle)
 				) {
 					console.error("Angle du gyroscope invalide.", message);
 					return;
@@ -88,6 +89,10 @@ export default class WebSocketClient {
 			// Transmettre l'état complet au contrôleur pour afficher la bonne superposition.
 			this.currentMode = message.mode;
 			this.onMode(message.mode, message.shaders);
+			// Les synchronisations initiales et les resets n'ont pas d'action sonore.
+			if (message.action === "click" || message.action === "validation") {
+				this.onAction(message.action);
+			}
 			console.info(`Mode shader reçu : ${this.currentMode}.`);
 		});
 

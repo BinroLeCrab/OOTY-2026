@@ -1,42 +1,42 @@
-import { texture, uniform, uv, vec2 } from "three/tsl";
+import { Fn, If, texture, uniform, uv, vec2 } from "three/tsl";
 import * as THREE from "three/webgpu";
 import webcam from "../tools/WebCam";
 import sizes from "../utils/Sizes";
 import { hueShader } from "../shaders/hue/hueShader";
 import { saturationShader } from "../shaders/saturation/saturationShader";
-import { glitchShader } from "../shaders/glitch/glitchShader";
+import { glitchShader, glitchColumnShader } from "../shaders/glitch/glitchShader";
 import { deformationShader } from "../shaders/deformation/deformationShader";
 
 const CAMERA_SHADERS = [
 	{ name: "Variation de teinte", shader: hueShader },
 	{ name: "Saturation", shader: saturationShader },
-	{ name: "Glitch / CRT", shader: glitchShader },
-	{ name: "Déformation", warp: deformationShader },
+	{
+		name: "Glitch / Colonnes",
+		warp: (coords, intensity, coverScale) => glitchShader(coords, intensity, coverScale),
+		shade: (color, intensity, coords, coverScale) => glitchColumnShader(color, intensity, coords, coverScale),
+	},
+	{ name: "Déformation", warp: (coords, intensity) => deformationShader(coords, intensity) },
 ];
 
 class WebCamMaterial extends THREE.MeshBasicNodeMaterial {
 	constructor(parameters) {
 		super(parameters);
-		this.shaderIntensity = uniform(1);
-		this.shaderStack = [{ mode: 0, intensity: this.shaderIntensity }];
+		this.pipelineCache = new Map();
 		this.coverScale = uniform(new THREE.Vector2(1, 1));
 		this.onResize = () => this.updateCoverScale();
 		sizes.addEventListener("resize", this.onResize);
 
-		this.webcamTexture = new THREE.DataTexture(
-			new Uint8Array([0, 0, 0, 255]),
-			1,
-			1,
-			THREE.RGBAFormat,
-			THREE.UnsignedByteType
-		);
+		// Envoyer la vidéo au GPU sans lecture des pixels ni copie intermédiaire sur le CPU.
+		this.webcamTexture = new THREE.VideoTexture(webcam.video);
 		this.webcamTexture.colorSpace = THREE.SRGBColorSpace;
-
-		this.colorNode = this.applyEffects(texture(this.webcamTexture));
+		this.videoWidth = 0;
+		this.videoHeight = 0;
+		this.setShaderStack([{ mode: 0, intensity: 1 }]);
 	}
 
 	updateCoverScale() {
-		const { width, height } = this.webcamTexture.image;
+		const { videoWidth: width, videoHeight: height } = webcam.video;
+		if (!width || !height) return;
 		const videoAspect = width / height;
 		const planeAspect = sizes.width / sizes.height;
 
@@ -63,27 +63,50 @@ class WebCamMaterial extends THREE.MeshBasicNodeMaterial {
 			.add(vec2(0.5, 0.5));
 	}
 
-	createWebcamNode() {
+	createWebcamNode(savedLayers, activeMode, activeIntensity) {
 		const coverUv = this.createCoverUv();
-		const webcamSample = texture(this.webcamTexture, coverUv);
-		return this.applyEffects(webcamSample, (coords) => texture(this.webcamTexture, coords), coverUv);
+		const sample = this.composeLayers(savedLayers);
+		// Le mode actif est un uniforme : le potentiomètre ne reconstruit plus le shader.
+		return Fn(([coords]) => {
+			const position = coords.toVar();
+			If(activeMode.equal(2), () => {
+				position.assign(glitchShader(coords, activeIntensity, this.coverScale));
+			}).ElseIf(activeMode.equal(3), () => {
+				position.assign(deformationShader(coords, activeIntensity));
+			});
+			const color = sample(position).toVar();
+			If(activeMode.equal(0), () => {
+				color.assign(hueShader(color, activeIntensity));
+			}).ElseIf(activeMode.equal(1), () => {
+				color.assign(saturationShader(color, activeIntensity));
+			}).ElseIf(activeMode.equal(2), () => {
+				color.assign(glitchColumnShader(color, activeIntensity, coords, this.coverScale));
+			});
+			return color;
+		})(coverUv);
 	}
 
 	dispose() {
 		sizes.removeEventListener("resize", this.onResize);
 		this.webcamTexture.dispose();
+		this.pipelineCache.clear();
 		super.dispose();
 	}
 
-	applyEffects(inputColor, sampleAt = () => inputColor, coords) {
-		// Composer les lectures de l?image pour conserver les couches pr?c?dentes lors de la d?formation.
-		const sample = this.shaderStack.reduce((previous, layer) => {
+	composeLayers(layers) {
+		// Conserver l'ordre des effets et les déformations des couches sauvegardées.
+		return layers.reduce((previous, layer) => {
 			const effect = CAMERA_SHADERS[layer.mode];
+			if (effect.shade) {
+				return (position) => effect.shade(
+					previous(effect.warp(position, layer.intensity, this.coverScale)),
+					layer.intensity, position, this.coverScale
+				);
+			}
 			return effect.warp
-				? (position) => previous(effect.warp(position, layer.intensity))
+				? (position) => previous(effect.warp(position, layer.intensity, this.coverScale))
 				: (position) => effect.shader(previous(position), layer.intensity);
-		}, sampleAt);
-		return sample(coords);
+		}, (coords) => texture(this.webcamTexture, coords));
 	}
 
 	setSelectedShader(mode) {
@@ -99,10 +122,31 @@ class WebCamMaterial extends THREE.MeshBasicNodeMaterial {
 			!Number.isFinite(layer.intensity) || layer.intensity < 0 || layer.intensity > 1)) {
 			throw new RangeError("Invalid camera shader stack.");
 		}
-		this.shaderStack = layers.map((layer) => ({ mode: layer.mode, intensity: uniform(layer.intensity) }));
-		this.shaderIntensity = this.shaderStack.at(-1).intensity;
-		this.colorNode = this.createWebcamNode();
-		this.needsUpdate = true;
+		// Les couches figées à zéro sont neutres et ne nécessitent aucun calcul GPU.
+		const saved = layers.slice(0, -1).filter((layer) => layer.intensity !== 0);
+		const key = saved.map((layer) => layer.mode).join(",");
+		let pipeline = this.pipelineCache.get(key);
+		if (!pipeline) {
+			const savedLayers = saved.map((layer) => ({ mode: layer.mode, intensity: uniform(layer.intensity) }));
+			pipeline = { savedLayers, activeMode: uniform(0, "int"), activeIntensity: uniform(1) };
+			pipeline.colorNode = this.createWebcamNode(savedLayers, pipeline.activeMode, pipeline.activeIntensity);
+			this.pipelineCache.set(key, pipeline);
+			// Borner les références conservées lors de longues sessions.
+			if (this.pipelineCache.size > 8) this.pipelineCache.delete(this.pipelineCache.keys().next().value);
+		}
+		pipeline.savedLayers.forEach((layer, index) => { layer.intensity.value = saved[index].intensity; });
+		pipeline.activeMode.value = layers.at(-1).mode;
+		pipeline.activeIntensity.value = layers.at(-1).intensity;
+		this.shaderIntensity = pipeline.activeIntensity;
+		// Garder la pile logique complète pour les sauvegardes et l'affichage du compteur.
+		this.shaderStack = layers.map((layer, index) => ({
+			mode: layer.mode,
+			intensity: index === layers.length - 1 ? this.shaderIntensity : { value: layer.intensity },
+		}));
+		if (this.colorNode !== pipeline.colorNode) {
+			this.colorNode = pipeline.colorNode;
+			this.needsUpdate = true;
+		}
 	}
 
 	getShaderName(mode) {
@@ -122,36 +166,11 @@ class WebCamMaterial extends THREE.MeshBasicNodeMaterial {
 	}
 
 	update() {
-		const frame = webcam.getFrame();
-
-		if (!frame) {
-			return;
-		}
-
-		if (
-			this.webcamTexture.image.width !== frame.width ||
-			this.webcamTexture.image.height !== frame.height
-		) {
-			this.webcamTexture.dispose();
-
-			this.webcamTexture = new THREE.DataTexture(
-				frame.data,
-				frame.width,
-				frame.height,
-				THREE.RGBAFormat,
-				THREE.UnsignedByteType
-			);
-
-			this.webcamTexture.colorSpace = THREE.SRGBColorSpace;
-			this.webcamTexture.flipY = true;
-			this.webcamTexture.needsUpdate = true;
-
+		const { videoWidth, videoHeight } = webcam.video;
+		if (videoWidth !== this.videoWidth || videoHeight !== this.videoHeight) {
+			this.videoWidth = videoWidth;
+			this.videoHeight = videoHeight;
 			this.updateCoverScale();
-			this.colorNode = this.createWebcamNode();
-			this.needsUpdate = true;
-		} else {
-			this.webcamTexture.image.data.set(frame.data);
-			this.webcamTexture.needsUpdate = true;
 		}
 	}
 }
