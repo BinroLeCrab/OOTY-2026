@@ -7,7 +7,7 @@ const BLE_PACKET_DELAY = 0;
 const IMAGE_WIDTH = 384;
 const BLOCK_LINES = 20;
 const GRAY_IMAGE_SPEED = 40;
-const PAPER_FEED_LINES = 64;
+const PAPER_FEED_LINES = 128;
 const GRAYSCALE_LEVELS = 14;
 const IMAGE_SHARPNESS = 1.1;
 const HISTOGRAM_PERCENTILE = 0.2;
@@ -22,15 +22,7 @@ function createPrinterPanel() {
 	const panel = document.createElement("section");
 	panel.id = "thermal-printer";
 	panel.innerHTML = `
-		<strong>Imprimante thermique</strong>
 		<button type="button" data-action="connect">Connecter X6h-0000</button>
-		<label>
-			Image à imprimer
-			<input type="file" accept="image/*" data-image />
-		</label>
-		<canvas data-preview hidden></canvas>
-		<button type="button" data-action="print" disabled>Imprimer l'image</button>
-		<output data-status aria-live="polite">Non connectée</output>
 	`;
 	document.body.append(panel);
 	return panel;
@@ -190,28 +182,6 @@ function toMonochromeRaster(image) {
 	}
 
 	return { width, height, raster };
-}
-
-function drawRasterPreview(canvas, raster) {
-	canvas.width = raster.width;
-	canvas.height = raster.height;
-	canvas.hidden = false;
-	const context = canvas.getContext("2d");
-
-	if (!context) {
-		throw new Error("Le canvas d'aperçu n'est pas disponible.");
-	}
-
-	const imageData = context.createImageData(raster.width, raster.height);
-	for (let index = 0; index < raster.raster.length; index += 1) {
-		const displayValue = 255 - raster.raster[index];
-		const pixel = index * 4;
-		imageData.data[pixel] = displayValue;
-		imageData.data[pixel + 1] = displayValue;
-		imageData.data[pixel + 2] = displayValue;
-		imageData.data[pixel + 3] = 255;
-	}
-	context.putImageData(imageData, 0, 0);
 }
 
 function crc8(data, start, length) {
@@ -425,18 +395,6 @@ async function listenForNotifications(service) {
 	}
 }
 
-async function loadImage(file) {
-	const url = URL.createObjectURL(file);
-	try {
-		const image = new Image();
-		image.src = url;
-		await image.decode();
-		return image;
-	} finally {
-		URL.revokeObjectURL(url);
-	}
-}
-
 export async function printImageUrl(dataUrl) {
 	const image = new Image();
 	image.src = dataUrl;
@@ -468,41 +426,14 @@ export async function printImage(image) {
 export function initializeThermalPrinter() {
 	const panel = createPrinterPanel();
 	const connectButton = panel.querySelector('[data-action="connect"]');
-	const printButton = panel.querySelector('[data-action="print"]');
-	const imageInput = panel.querySelector("[data-image]");
-	const previewCanvas = panel.querySelector("[data-preview]");
-	const status = panel.querySelector("[data-status]");
-	const setStatus = (message, isError = false) => {
-		status.textContent = message;
-		status.dataset.error = String(isError);
-	};
-
-	imageInput.addEventListener("change", async () => {
-		const [file] = imageInput.files;
-		if (!file) {
-			previewCanvas.hidden = true;
-			return;
-		}
-
-		try {
-			const image = await loadImage(file);
-			const raster = toMonochromeRaster(image);
-			drawRasterPreview(previewCanvas, raster);
-			setStatus(`Aperçu prêt : ${raster.width} × ${raster.height} pixels.`);
-		} catch (error) {
-			previewCanvas.hidden = true;
-			setStatus(`Aperçu impossible : ${error.message}`, true);
-		}
-	});
 
 	connectButton.addEventListener("click", async () => {
 		if (!("bluetooth" in navigator)) {
-			setStatus("Web Bluetooth n'est pas disponible dans ce navigateur.", true);
+			console.error("[ThermalPrinter] Web Bluetooth indisponible.");
 			return;
 		}
 
 		connectButton.disabled = true;
-		setStatus("Recherche de l'imprimante...");
 		try {
 			const device = await navigator.bluetooth.requestDevice({
 				filters: [{ namePrefix: "X6h" }],
@@ -525,37 +456,18 @@ export function initializeThermalPrinter() {
 				properties: result.characteristic.properties,
 			});
 			await listenForNotifications(result.service);
-			printButton.disabled = false;
-			setStatus(`Connectée. Canal détecté : ${result.description}`);
+			connectButton.hidden = true;
 			device.addEventListener("gattserverdisconnected", () => {
 				activeWriteCharacteristic = null;
-				printButton.disabled = true;
-				setStatus("Imprimante déconnectée.", true);
+				connectButton.hidden = false;
+				connectButton.disabled = false;
 			});
 		} catch (error) {
-			setStatus(`Connexion impossible : ${error.message}`, true);
+			console.error("[ThermalPrinter] Connexion impossible.", error);
 		} finally {
-			connectButton.disabled = false;
-		}
-	});
-
-	printButton.addEventListener("click", async () => {
-		const [file] = imageInput.files;
-		if (!file) {
-			setStatus("Sélectionne une image avant d'imprimer.", true);
-			return;
-		}
-
-		printButton.disabled = true;
-		setStatus("Conversion et impression en cours...");
-		try {
-			const image = await loadImage(file);
-			await printImage(image);
-			setStatus("Image envoyée à l'imprimante.");
-		} catch (error) {
-			setStatus(`Impression impossible : ${error.message}`, true);
-		} finally {
-			printButton.disabled = false;
+			if (!activeWriteCharacteristic) {
+				connectButton.disabled = false;
+			}
 		}
 	});
 }
