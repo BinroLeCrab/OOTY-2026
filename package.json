@@ -16,6 +16,7 @@
     "@vitejs/plugin-basic-ssl": "^2.3.0",
     "gsap": "^3.15.0",
     "howler": "^2.2.4",
+    "lzo1x": "^1.0.1",
     "serialport": "^13.0.0",
     "three": "^0.185.1",
     "tweakpane": "^4.0.5",

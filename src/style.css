@@ -43,7 +43,6 @@ body
     pointer-events: none;
 }
 
-
 body.on-home { background: #eee9df; }
 body.on-home .threejs, body.on-home #webcam, body.on-home #shader-info { visibility: hidden; }
 #home {
@@ -86,4 +85,37 @@ body.on-home .threejs, body.on-home #webcam, body.on-home #shader-info { visibil
 }
 @media (max-height: 600px) {
  #home-subtitles { bottom: 16px; font-size: 16px; }
+}
+
+#thermal-printer {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 2;
+    padding: 8px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.72);
+    color: #fff;
+    font: 14px/1.4 system-ui, sans-serif;
+}
+
+#thermal-printer button {
+    min-height: 32px;
+    font: inherit;
+}
+
+#thermal-printer button {
+    cursor: pointer;
+}
+
+#thermal-printer button:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+#print-canvas {
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    z-index: 2;
 }
