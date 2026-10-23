@@ -13,16 +13,19 @@ import { printImageUrl } from './tools/ThermalPrinter.js';
 // 	});
 
 
-const printButton = document.getElementById("print-canvas");
 const canvasThreeJS = document.querySelector(".threejs");
 
-printButton.addEventListener("click", async () => {
-    const dataUrl = canvasThreeJS.toDataURL("image/png");
-    console.log("Data URL:", dataUrl); // Log the data URL to the console
+document.addEventListener("keydown", async (event) => {
+    if (event.key.toLowerCase() === "p") {
+        event.preventDefault();
 
-    try {
-        await printImageUrl(dataUrl);
-    } catch (error) {
-        console.error("Erreur lors de l'impression :", error);
+        const dataUrl = canvasThreeJS.toDataURL("image/png");
+        console.log("Data URL:", dataUrl); // Log the data URL to the console
+
+        try {
+            await printImageUrl(dataUrl);
+        } catch (error) {
+            console.error("Erreur lors de l'impression :", error);
+        }
     }
 });
