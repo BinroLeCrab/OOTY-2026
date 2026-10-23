@@ -18,6 +18,12 @@ class WebCamMaterial extends THREE.MeshBasicNodeMaterial {
   this.webcamTexture = new THREE.VideoTexture(webcam.video);
   this.webcamTexture.colorSpace = THREE.SRGBColorSpace;
   this.pipelineCache = new Map();
+  this.animationTime = 0;
+  this.variationOffset = 0;
+  this.variationKey = undefined;
+  this.animationSpeed = 1;
+  this.lastFrame = performance.now();
+  this.savedTimes = [];
   this.onResize = () => this.updateCoverScale();
   sizes.addEventListener('resize',this.onResize);
   this.videoWidth = 0;
@@ -32,45 +38,65 @@ class WebCamMaterial extends THREE.MeshBasicNodeMaterial {
  }
  // Composer un ensemble : teinte puis saturation, colonnes, et d?formation globale.
  // Les conditions sont uniformes et ?vitent le bruit co?teux lorsque l'intensit? est nulle.
- compose(previous, effects) {
+ compose(previous, effects, enabled, phase) {
   return Fn(([coords]) => {
    const position = coords.add(vec2(0)).toVar();
-   If(effects.deformation.greaterThan(0), () => position.assign(deformationShader(coords,effects.deformation)));
+   if (enabled.includes('deformation')) If(effects.deformation.greaterThan(0), () => position.assign(deformationShader(coords,effects.deformation,phase)));
    const columnCoords = position.toVar();
    // Copier les coordonn?es avant la pixellisation pour dessiner la trame au bon endroit.
    const sampleCoords = position.add(vec2(0)).toVar();
-   If(effects.glitch.greaterThan(0), () => sampleCoords.assign(glitchShader(position,effects.glitch,this.coverScale)));
+   if (enabled.includes('glitch')) If(effects.glitch.greaterThan(0), () => sampleCoords.assign(glitchShader(position,effects.glitch,this.coverScale,phase)));
    const color = previous(sampleCoords).toVar();
-   If(effects.hue.greaterThan(0), () => color.assign(hueShader(color,effects.hue)));
-   If(effects.saturation.greaterThan(0), () => color.assign(saturationShader(color,effects.saturation)));
-   If(effects.glitch.greaterThan(0), () => color.assign(glitchColumnShader(color,effects.glitch,columnCoords,this.coverScale)));
+   if (enabled.includes('hue')) If(effects.hue.greaterThan(0), () => color.assign(hueShader(color,effects.hue)));
+   if (enabled.includes('saturation')) If(effects.saturation.greaterThan(0), () => color.assign(saturationShader(color,effects.saturation)));
+   if (enabled.includes('glitch')) If(effects.glitch.greaterThan(0), () => color.assign(glitchColumnShader(color,effects.glitch,columnCoords,this.coverScale,phase)));
    return color;
   });
  }
- setEffects(effects,savedEffects = []) {
+ setEffects(effects,savedEffects = [],activeShaders = Object.keys(neutral),variationKey) {
   if (!validEffects(effects) || !Array.isArray(savedEffects) || !savedEffects.every(validEffects)) throw new RangeError('Effets invalides.');
   // Chaque taille de pile r?utilise son graphe ; seuls les uniformes changent en direct.
-  const count = savedEffects.length;
-  let pipeline = this.pipelineCache.get(count);
+  const keys = Object.keys(neutral);
+  this.savedTimes.length = Math.min(this.savedTimes.length,savedEffects.length);
+  while (this.savedTimes.length < savedEffects.length) this.savedTimes.push(this.animationTime + this.variationOffset);
+  // Figer les couches validées avant de changer le motif de la couche active.
+  if (variationKey !== this.variationKey) {
+   this.variationKey = variationKey;
+   this.variationOffset += 50 + Math.random() * 500;
+  }
+  const savedIndices = savedEffects.flatMap((group,index) => keys.some(key => group[key] > 0) ? [index] : []);
+  const saved = savedIndices.map(index => savedEffects[index]);
+  const phases = [...savedIndices.map(index => this.savedTimes[index]), this.animationTime + this.variationOffset];
+  const values = [...saved,effects];
+  const enabled = [...saved.map(group => keys.filter(key => group[key] > 0)), keys.filter(key => activeShaders.includes(key))];
+  const signature = enabled.map(group => group.join(',')).join('|');
+  let pipeline = this.pipelineCache.get(signature);
   if (!pipeline) {
-   const groups = [...savedEffects,effects].map(uniforms);
+   const groups = values.map(uniforms);
+   const times = phases.map(value => uniform(value));
    let sample = coords => texture(this.webcamTexture,coords);
-   for (const group of groups) sample = this.compose(sample,group);
+   groups.forEach((group,index) => { sample = this.compose(sample,group,enabled[index],times[index]); });
    const coords = uv().sub(0.5).mul(this.coverScale).add(0.5);
-   pipeline = {groups,colorNode:sample(coords)};
-   this.pipelineCache.set(count,pipeline);
+   pipeline = {groups,times,colorNode:sample(coords)};
+   this.pipelineCache.set(signature,pipeline);
    if(this.pipelineCache.size>4) this.pipelineCache.delete(this.pipelineCache.keys().next().value);
   }
-  [...savedEffects,effects].forEach((group,index) => {
+  values.forEach((group,index) => {
    for(const key of Object.keys(neutral)) pipeline.groups[index][key].value = group[key];
   });
   this.effectIntensities = pipeline.groups.at(-1);
+  phases.forEach((phase,index) => { pipeline.times[index].value = phase; });
+  this.effectTime = pipeline.times.at(-1);
   if (this.colorNode !== pipeline.colorNode) {
    this.colorNode = pipeline.colorNode;
    this.needsUpdate = true;
   }
  }
  update() {
+  const now = performance.now();
+  this.animationTime += Math.min((now-this.lastFrame)/1000,0.1)*this.animationSpeed;
+  this.lastFrame = now;
+  if (this.effectTime) this.effectTime.value = this.animationTime + this.variationOffset;
   const {videoWidth,videoHeight} = webcam.video;
   if(videoWidth!==this.videoWidth || videoHeight!==this.videoHeight) {
    this.videoWidth=videoWidth; this.videoHeight=videoHeight;

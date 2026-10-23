@@ -1,11 +1,12 @@
 import { Fn, mx_noise_vec3, vec2 } from "three/tsl";
 
 // Les ondulations restent fixes lorsque l'intensité de la couche est sauvegardée.
-export const deformationShader = Fn(([coords, intensity]) => {
+export const deformationShader = Fn(([coords, intensity, phase]) => {
 	const strength = intensity.clamp(0, 1).toVar();
+	const drift = vec2(phase.mul(0.16), phase.mul(-0.11));
 	// Brouiller le domaine pour casser les motifs réguliers du bruit.
-	const domainWarp = mx_noise_vec3(coords.mul(3.1).add(vec2(7.3, 19.1))).xy.toVar();
-	const warpedCoords = coords.add(domainWarp.mul(0.24)).toVar();
+	const domainWarp = mx_noise_vec3(coords.mul(3.1).add(vec2(7.3, 19.1)).add(drift)).xy.toVar();
+	const warpedCoords = coords.add(domainWarp.mul(0.24)).add(drift.mul(0.12)).toVar();
 	// Superposer des mouvements larges et des plis plus fins, décorrélés en X/Y.
 	const broad = mx_noise_vec3(warpedCoords.mul(4.3).add(vec2(13.7, 2.9))).xy.toVar();
 	const medium = mx_noise_vec3(warpedCoords.mul(10.7).add(vec2(31.2, 17.8))).xy.toVar();

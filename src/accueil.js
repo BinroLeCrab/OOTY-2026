@@ -1,5 +1,6 @@
 import SousTitres from './sousTitres.js';
 import transitionAccueil from './transition/index.js';
+import atmosphereAudio from './tools/atmosphere';
 
 const home = document.getElementById('home');
 const startButton = document.getElementById('start-experience');
@@ -36,6 +37,7 @@ async function start() {
  if (playing || entering) return;
  playing = true;
  startButton.disabled = true;
+ atmosphereAudio.play();
  try {
   await voice.play();
   status.textContent = 'Écoutez…';

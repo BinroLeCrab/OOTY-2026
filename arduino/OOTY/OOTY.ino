@@ -1,313 +1,160 @@
-
 #include <Wire.h>
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
 #include <math.h>
 
 Adafruit_MPU6050 mpu;
+constexpr unsigned long SERIAL_BAUD_RATE = 9600;
 
-// -----------------------------------
-// ENCODEUR ROTATIF
-// -----------------------------------
-
+// Encodeur rotatif : 5 impulsions detectees par mode
 const int CLK = 12;
 const int DT = 13;
-
-int ancienCLK;
+int ancienCLK = HIGH;
 int mode = 0;
+int compteurCrans = 0;
+const int cransParMode = 5;
 
-// -----------------------------------
-// BOUTONS
-// -----------------------------------
-
+// Boutons
 const int boutonValidation = 2;
 const int boutonImprimer = 4;
-
 int ancienValidation = HIGH;
 int ancienImprimer = HIGH;
-
 unsigned long dernierAppui = 0;
 unsigned long dernierImprimer = 0;
 
-// -----------------------------------
-// LED RGB ET PIEZO
-// -----------------------------------
-
-const int rouge = 9;
-const int vert = 10;
-const int bleu = 5;
+// Piezo et gyroscope
 const int piezo = 6;
-
-// -----------------------------------
-// GYROSCOPE X Y Z
-// -----------------------------------
-
+bool gyroscopeDisponible = false;
 unsigned long derniereLectureGyroscope = 0;
 unsigned long dernierEnvoiGyroscope = 0;
+float offsetX = 0;
+float offsetY = 0;
+const float zoneMorte = 1.0;
 
-float angleZ = 0;
-float vitesseZLisse = 0;
-float offsetZ = 0;
+float calculerAngleX(float ax, float ay, float az) {
+  return atan2(ay, sqrt(ax * ax + az * az)) * 180.0 / PI;
+}
 
-bool premiereLectureGyroscope = true;
+float calculerAngleY(float ax, float ay, float az) {
+  return atan2(-ax, sqrt(ay * ay + az * az)) * 180.0 / PI;
+}
 
-// Reglages Z
-const float zoneMorteZ = 1.5;
-const float facteurLissageZ = 0.25;
-
-// -----------------------------------
-// SETUP
-// -----------------------------------
+void calibrerGyroscope() {
+  Serial.println("Calibration en cours...");
+  Serial.println("Ne bougez pas le controleur !");
+  sensors_event_t a, g, temp;
+  float sommeX = 0, sommeY = 0;
+  int lecturesValides = 0;
+  for (int i = 0; i < 200; i++) {
+    if (mpu.getEvent(&a, &g, &temp)) {
+      sommeX += calculerAngleX(a.acceleration.x, a.acceleration.y, a.acceleration.z);
+      sommeY += calculerAngleY(a.acceleration.x, a.acceleration.y, a.acceleration.z);
+      lecturesValides++;
+    }
+    delay(10);
+  }
+  if (lecturesValides > 0) {
+    offsetX = sommeX / lecturesValides;
+    offsetY = sommeY / lecturesValides;
+  }
+  derniereLectureGyroscope = millis();
+  dernierEnvoiGyroscope = millis();
+  Serial.println("Calibration terminee !");
+  Serial.println("Gyroscope:0.0,0.0");
+}
 
 void setup() {
-  Serial.begin(115200);
-
-  Wire.begin();
-  Wire.setClock(100000);
-
-#if defined(WIRE_HAS_TIMEOUT)
-  Wire.setWireTimeout(3000, true);
-#endif
-
+  Serial.begin(SERIAL_BAUD_RATE);
   pinMode(CLK, INPUT_PULLUP);
   pinMode(DT, INPUT_PULLUP);
   ancienCLK = digitalRead(CLK);
-
   pinMode(boutonValidation, INPUT_PULLUP);
   pinMode(boutonImprimer, INPUT_PULLUP);
-
-  pinMode(rouge, OUTPUT);
-  pinMode(vert, OUTPUT);
-  pinMode(bleu, OUTPUT);
   pinMode(piezo, OUTPUT);
-
+  Wire.begin();
+  Wire.setClock(100000);
+#if defined(WIRE_HAS_TIMEOUT)
+  Wire.setWireTimeout(3000, true);
+#endif
   Serial.println("Initialisation MPU6050...");
-
-  if (!mpu.begin()) {
-    Serial.println("ERREUR : MPU6050 non detecte !");
-    while (true) {
-      delay(100);
-    }
+  gyroscopeDisponible = mpu.begin();
+  if (gyroscopeDisponible) {
+    mpu.setGyroRange(MPU6050_RANGE_250_DEG);
+    mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
+    Serial.println("MPU6050 connecte !");
+    calibrerGyroscope();
+  } else {
+    Serial.println("MPU6050 absent - Programme continue !");
   }
-
-  mpu.setGyroRange(MPU6050_RANGE_250_DEG);
-  mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
-
-  Serial.println("MPU6050 connecte !");
   Serial.println("Encodeur - Mode : 0");
+  Serial.println("Ready");
 }
 
-// -----------------------------------
-// LOOP
-// -----------------------------------
+void lireEncodeur() {
+  int nouveauCLK = digitalRead(CLK);
+  if (nouveauCLK != ancienCLK && nouveauCLK == LOW) {
+    if (digitalRead(DT) == HIGH) compteurCrans++;
+    else compteurCrans--;
+    Serial.print("Encodeur - Cran : ");
+    Serial.println(compteurCrans);
+    if (compteurCrans >= cransParMode) {
+      mode = (mode + 1) % 4;
+      compteurCrans = 0;
+      Serial.print("Encodeur - Mode : ");
+      Serial.println(mode);
+    } else if (compteurCrans <= -cransParMode) {
+      mode = (mode + 3) % 4;
+      compteurCrans = 0;
+      Serial.print("Encodeur - Mode : ");
+      Serial.println(mode);
+    }
+  }
+  ancienCLK = nouveauCLK;
+}
+
+void lireBoutons() {
+  int etatValidation = digitalRead(boutonValidation);
+  if (etatValidation == LOW && ancienValidation == HIGH && millis() - dernierAppui >= 200) {
+    dernierAppui = millis();
+    Serial.println("Validation");
+  }
+  ancienValidation = etatValidation;
+  int etatImprimer = digitalRead(boutonImprimer);
+  if (etatImprimer == LOW && ancienImprimer == HIGH && millis() - dernierImprimer >= 200) {
+    dernierImprimer = millis();
+    // Impression ajoutee plus tard, comme dans le code original.
+  }
+  ancienImprimer = etatImprimer;
+}
+
+void lireGyroscope() {
+  unsigned long maintenant = millis();
+  if (maintenant - derniereLectureGyroscope < 20) return;
+  derniereLectureGyroscope = maintenant;
+  sensors_event_t acceleration, rotation, temperature;
+  if (!mpu.getEvent(&acceleration, &rotation, &temperature)) {
+    Serial.println("Erreur lecture MPU6050");
+    return;
+  }
+  float angleX = calculerAngleX(acceleration.acceleration.x, acceleration.acceleration.y, acceleration.acceleration.z) - offsetX;
+  float angleY = calculerAngleY(acceleration.acceleration.x, acceleration.acceleration.y, acceleration.acceleration.z) - offsetY;
+  angleX = constrain(angleX, -90.0, 90.0);
+  angleY = constrain(angleY, -90.0, 90.0);
+  if (fabs(angleX) < zoneMorte) angleX = 0;
+  if (fabs(angleY) < zoneMorte) angleY = 0;
+  if (maintenant - dernierEnvoiGyroscope >= 100) {
+    dernierEnvoiGyroscope = maintenant;
+    Serial.print("Gyroscope:");
+    Serial.print(angleX, 1);
+    Serial.print(',');
+    Serial.println(angleY, 1);
+  }
+  if (fabs(angleX) >= 90 || fabs(angleY) >= 90) tone(piezo, 100);
+  else noTone(piezo);
+}
 
 void loop() {
   lireEncodeur();
   lireBoutons();
-  actualiserLED();
-  lireGyroscope();
-}
-
-// -----------------------------------
-// ENCODEUR ROTATIF
-// -----------------------------------
-
-void lireEncodeur() {
-  int nouveauCLK = digitalRead(CLK);
-
-  if (nouveauCLK != ancienCLK && nouveauCLK == LOW) {
-    if (digitalRead(DT) == HIGH) {
-      mode++;
-    } else {
-      mode--;
-    }
-
-    if (mode > 3) {
-      mode = 0;
-    } else if (mode < 0) {
-      mode = 3;
-    }
-
-    Serial.print("Encodeur - Mode : ");
-    Serial.println(mode);
-  }
-
-  ancienCLK = nouveauCLK;
-}
-
-// -----------------------------------
-// BOUTONS
-// -----------------------------------
-
-void lireBoutons() {
-  int etatValidation = digitalRead(boutonValidation);
-
-  if (
-    etatValidation == LOW &&
-    ancienValidation == HIGH &&
-    millis() - dernierAppui >= 200
-  ) {
-    dernierAppui = millis();
-
-    mode++;
-
-    if (mode > 3) {
-      mode = 0;
-    }
-
-    Serial.println("Validation");
-  }
-
-  ancienValidation = etatValidation;
-
-  int etatImprimer = digitalRead(boutonImprimer);
-
-  if (
-    etatImprimer == LOW &&
-    ancienImprimer == HIGH &&
-    millis() - dernierImprimer >= 200
-  ) {
-    dernierImprimer = millis();
-
-    // Impression ajoutee plus tard
-  }
-
-  ancienImprimer = etatImprimer;
-}
-
-// -----------------------------------
-// LED RGB
-// -----------------------------------
-
-void actualiserLED() {
-  digitalWrite(rouge, LOW);
-  digitalWrite(vert, LOW);
-  digitalWrite(bleu, LOW);
-
-  if (mode == 0) {
-    digitalWrite(rouge, HIGH);
-  }
-  else if (mode == 1) {
-    digitalWrite(vert, HIGH);
-  }
-  else if (mode == 2) {
-    digitalWrite(bleu, HIGH);
-  }
-  else if (mode == 3) {
-    digitalWrite(rouge, HIGH);
-    digitalWrite(bleu, HIGH);
-  }
-}
-
-// -----------------------------------
-// GYROSCOPE X Y Z
-// -----------------------------------
-
-void lireGyroscope() {
-  unsigned long maintenant = millis();
-
-  // Lecture toutes les 20 ms
-  if (maintenant - derniereLectureGyroscope < 20) {
-    return;
-  }
-
-  float tempsEcoule = 0;
-
-  if (premiereLectureGyroscope) {
-    premiereLectureGyroscope = false;
-  } else {
-    tempsEcoule =
-      (maintenant - derniereLectureGyroscope) / 1000.0;
-  }
-
-  derniereLectureGyroscope = maintenant;
-
-  sensors_event_t acceleration, rotation, temperature;
-
-  bool lectureOK = mpu.getEvent(
-    &acceleration,
-    &rotation,
-    &temperature
-  );
-
-  if (!lectureOK) {
-    Serial.println("Erreur lecture MPU6050");
-    return;
-  }
-
-  // -----------------------------------
-  // AXE X
-  // -----------------------------------
-
-  float angleX = atan2(
-    acceleration.acceleration.y,
-    acceleration.acceleration.z
-  ) * 180.0 / PI;
-
-  // -----------------------------------
-  // AXE Y
-  // -----------------------------------
-
-  float angleY = atan2(
-    -acceleration.acceleration.x,
-    sqrt(
-      acceleration.acceleration.y * acceleration.acceleration.y +
-      acceleration.acceleration.z * acceleration.acceleration.z
-    )
-  ) * 180.0 / PI;
-
-  // -----------------------------------
-  // AXE Z
-  // -----------------------------------
-
-  // Vitesse de rotation en degres/seconde
-  float vitesseZ = rotation.gyro.z * 180.0 / PI;
-
-  // Correction offset
-  vitesseZ -= offsetZ;
-
-  // Zone morte
-  if (fabs(vitesseZ) < zoneMorteZ) {
-    vitesseZ = 0;
-  }
-
-  // Lissage
-  vitesseZLisse =
-    vitesseZLisse * (1.0 - facteurLissageZ) +
-    vitesseZ * facteurLissageZ;
-
-  // Stabilisation a l'arret
-  if (fabs(vitesseZLisse) < 0.1 && vitesseZ == 0) {
-    vitesseZLisse = 0;
-  }
-
-  // Calcul angle Z
-  angleZ += vitesseZLisse * tempsEcoule;
-
-  // -----------------------------------
-  // ENVOI SERIAL X Y Z
-  // -----------------------------------
-
-  if (maintenant - dernierEnvoiGyroscope >= 100) {
-    dernierEnvoiGyroscope = maintenant;
-
-    Serial.print("Gyroscope:");
-    Serial.print(angleX, 1);
-    Serial.print(',');
-    Serial.print(angleY, 1);
-    Serial.print(',');
-    Serial.println(angleZ, 1);
-  }
-
-  // -----------------------------------
-  // PIEZO
-  // -----------------------------------
-
-  float rotationY = angleY + 90.0;
-
-  if (rotationY >= 90 || rotationY <= -90) {
-    tone(piezo, 100);
-  } else {
-    noTone(piezo);
-  }
+  if (gyroscopeDisponible) lireGyroscope();
 }

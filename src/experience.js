@@ -8,9 +8,9 @@ import ArduinoShaderController from "./controllers/ArduinoShaderController";
 import webcam from "./tools/WebCam";
 import sizes from "./utils/Sizes";
 import { initializeThermalPrinter } from "./tools/ThermalPrinter";
-import AtmosphereAudio from "./tools/AtmosphereAudio";
+import atmosphereAudio from "./tools/atmosphere";
 
-const showStats = true;
+const showStats = false;
 const logRendererInfo = false;
 const renderPostProcessing = false;
 
@@ -26,7 +26,7 @@ if (!canvas) {
 
 const scene = new Scene();
 
-const atmosphereAudio = new AtmosphereAudio();
+atmosphereAudio.play();
 const arduinoController = new ArduinoShaderController(scene.video, (intensity) => {
 	atmosphereAudio.bip.setIntensity(intensity);
 });
@@ -58,14 +58,14 @@ scene.add(camera);
 
 const renderer = new THREE.WebGPURenderer({
 	canvas,
-	antialias: true,
+	antialias: false,
 });
 
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.setClearColor(0x000000);
 renderer.setSize(sizes.width, sizes.height);
-renderer.setPixelRatio(sizes.pixelRatio);
+renderer.setPixelRatio(Math.min(sizes.pixelRatio, 1));
 await renderer.init();
 
 
@@ -96,7 +96,7 @@ sizes.addEventListener("resize", () => {
 	camera.updateProjectionMatrix();
 
 	renderer.setSize(sizes.width, sizes.height);
-	renderer.setPixelRatio(sizes.pixelRatio);
+	renderer.setPixelRatio(Math.min(sizes.pixelRatio, 1));
 });
 
 // --- ANIMATION
@@ -144,7 +144,6 @@ if (import.meta.hot) {
 	import.meta.hot.dispose(() => {
 		renderer.setAnimationLoop(null);
 		arduinoController.dispose();
-		atmosphereAudio.dispose();
 		webcam.dispose();
 		interactionRaycaster.dispose();
 		scene.video.material.dispose();

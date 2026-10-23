@@ -41,24 +41,17 @@ npm run preview
 
 ## Arduino, encodeur et shaders
 
-Le sketch de reference est [OOTYController.ino](arduino/OOTYController/OOTYController.ino).
-Il doit etre televerse sur la carte : enregistrer le fichier dans l'IDE ne suffit pas.
+Deux cartes separees : [controleur](arduino/OOTY/OOTY.ino) et [ruban de 250 LED](arduino/LED/LED.ino), toutes deux a 9600 bauds.
+Le controleur envoie les angles X/Y, les changements de mode et Validation. Deux shaders distincts suivent les axes ; l'encodeur renouvelle la paire et Validation sauvegarde les effets avant un nouveau tirage.
 
-- Bouton D2 : envoie uniquement `Validation`. Le relais fige l'effet actif et son intensite, puis ajoute le shader suivant.
-- Encodeur : envoie `Encodeur - Mode : N` (0 a 3). Il remplace uniquement la couche active, sans sauvegarde.
-- Gyroscope : envoie `Gyroscope:<angleY>`. L'intensite vaut `1 - abs(angleY) / 90`, et ne modifie que la couche active.
-- Recharger la page efface les couches sauvegardees et revient au premier shader.
-- Le panneau en haut a droite affiche aussi le nombre d'effets sauvegardes.
+Fermer les moniteurs serie, puis lancer (adapter les ports) :
 
-Le relais utilise 115200 bauds. Copier `.env.example` vers `.env` et regler `SERIAL_PORT` (COM8 par defaut).
-Fermer le moniteur serie apres le televersement, puis lancer dans deux terminaux :
-
-```bash
-npm run websocket
-npm run dev
+```powershell
+npm.cmd run websocket -- COM8 COM9
+npm.cmd run dev
 ```
 
-L'argument `npm run websocket -- COM5` est prioritaire sur `SERIAL_PORT`.
+Utiliser ?debug=0 pour les capteurs reels. Voir [la documentation Arduino](arduino/README.md) pour le televersement, les ports et la simulation.
 
 ## Organisation du projet
 

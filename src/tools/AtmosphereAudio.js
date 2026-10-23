@@ -2,7 +2,7 @@
 import BipAudio from "./BipAudio";
 
 export default class AtmosphereAudio {
- constructor() {
+ constructor({ autoStart = true } = {}) {
   this.enabled = true;
   this.disposed = false;
   this.bip = new BipAudio();
@@ -16,7 +16,7 @@ export default class AtmosphereAudio {
   };
   this.audio = new Howl({
    src: [`${import.meta.env.BASE_URL}sounds/atmosphere.mp3`],
-   loop: true, volume: 0.7,
+   loop: true, volume: 1,
    onplay: () => {
     if (!this.enabled || this.disposed) return;
     this.bip.play();
@@ -28,9 +28,11 @@ export default class AtmosphereAudio {
    onloaderror: (_id, error) => console.error('Ambiance indisponible :', error),
   });
   // Essayer immédiatement ; une interaction débloquera le son si le navigateur l'exige.
-  document.addEventListener('pointerdown', this.onInteraction);
-  document.addEventListener('keydown', this.onInteraction);
-  this.play();
+  if (autoStart) {
+   document.addEventListener('pointerdown', this.onInteraction);
+   document.addEventListener('keydown', this.onInteraction);
+   this.play();
+  }
  }
 
  play() {
