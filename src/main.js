@@ -1,7 +1,9 @@
-import { printImageUrl } from './tools/ThermalPrinter.js';
+import { initializeThermalPrinter, printImageUrl } from './tools/ThermalPrinter.js';
+
+initializeThermalPrinter();
 
 // Remettre a false pour reactiver l'accueil, la voix off et la transition.
-const SKIP_INTRO = true;
+const SKIP_INTRO = false;
 
 if (SKIP_INTRO) {
     document.getElementById('home').hidden = true;

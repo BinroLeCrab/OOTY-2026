@@ -456,10 +456,10 @@ export function initializeThermalPrinter() {
 				properties: result.characteristic.properties,
 			});
 			await listenForNotifications(result.service);
-			connectButton.hidden = true;
+			panel.hidden = true;
 			device.addEventListener("gattserverdisconnected", () => {
 				activeWriteCharacteristic = null;
-				connectButton.hidden = false;
+				panel.hidden = false;
 				connectButton.disabled = false;
 			});
 		} catch (error) {

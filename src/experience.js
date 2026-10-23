@@ -7,14 +7,12 @@ import * as stats from "./tools/Stats";
 import ArduinoShaderController from "./controllers/ArduinoShaderController";
 import webcam from "./tools/WebCam";
 import sizes from "./utils/Sizes";
-import { initializeThermalPrinter } from "./tools/ThermalPrinter";
 import atmosphereAudio from "./tools/atmosphere";
 
 const showStats = false;
 const logRendererInfo = false;
 const renderPostProcessing = false;
 
-initializeThermalPrinter();
 
 // --- BASE
 

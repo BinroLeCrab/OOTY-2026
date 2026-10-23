@@ -91,12 +91,16 @@ body.on-home .threejs, body.on-home #webcam, body.on-home #shader-info { visibil
     position: fixed;
     top: 16px;
     left: 16px;
-    z-index: 2;
+    z-index: 2147483647;
     padding: 8px;
     border-radius: 8px;
     background: rgba(0, 0, 0, 0.72);
     color: #fff;
     font: 14px/1.4 system-ui, sans-serif;
+}
+
+#thermal-printer[hidden] {
+    display: none;
 }
 
 #thermal-printer button {
