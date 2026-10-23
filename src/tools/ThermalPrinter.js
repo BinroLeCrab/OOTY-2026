@@ -21,7 +21,6 @@ let activeWriteCharacteristic = null;
 function createPrinterPanel() {
 	const panel = document.createElement("section");
 	panel.id = "thermal-printer";
-	panel.hidden = true;
 	panel.innerHTML = `
 		<button type="button" data-action="connect">Connecter X6h-0000</button>
 	`;
